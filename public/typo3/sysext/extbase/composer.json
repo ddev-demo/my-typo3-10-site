@@ -1,0 +1,58 @@
+{
+	"name": "typo3/cms-extbase",
+	"type": "typo3-cms-framework",
+	"description": "A framework to build extensions for TYPO3 CMS.",
+	"homepage": "https://typo3.org",
+	"license": ["GPL-2.0-or-later"],
+	"authors": [{
+		"name": "TYPO3 Core Team",
+		"email": "typo3cms@typo3.org",
+		"role": "Developer"
+	}],
+	"config": {
+		"sort-packages": true
+	},
+	"require": {
+		"phpdocumentor/reflection-docblock": "^4.3",
+		"symfony/dependency-injection": "^4.1",
+		"symfony/property-access": "^4.2",
+		"symfony/property-info": "^4.2",
+		"typo3/cms-core": "10.1.0",
+		"webmozart/assert": "^1.0"
+	},
+	"suggest": {
+		"typo3/cms-scheduler": "Additional scheduler tasks"
+	},
+	"conflict": {
+		"typo3/cms": "*",
+		"phpdocumentor/reflection-docblock": ">= 4.3.2"
+	},
+	"replace": {
+		"extbase": "*"
+	},
+	"extra": {
+		"branch-alias": {
+			"dev-master": "10.1.x-dev"
+		},
+		"typo3/cms": {
+			"Package": {
+				"serviceProvider": "TYPO3\\CMS\\Extbase\\ServiceProvider",
+				"protected": true,
+				"partOfFactoryDefault": true,
+				"partOfMinimalUsableSystem": true
+			},
+			"extension-key": "extbase"
+		}
+	},
+	"autoload": {
+		"psr-4": {
+			"TYPO3\\CMS\\Extbase\\": "Classes/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"TYPO3\\CMS\\Extbase\\Tests\\": "Tests/"
+		},
+		"classmap": ["Tests/Unit/Object/Container/Fixtures/"]
+	}
+}
