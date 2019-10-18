@@ -1,4 +1,4 @@
-base: 'https://my-typo3-10-site.ddev.site/'
+base: '/'
 errorHandling: {  }
 languages:
   -
