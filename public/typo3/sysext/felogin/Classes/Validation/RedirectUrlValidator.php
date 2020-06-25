@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Felogin\Validation;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,6 +15,8 @@ namespace TYPO3\CMS\Felogin\Validation;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\FrontendLogin\Validation;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
@@ -25,6 +26,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 /**
  * Used to check if a referrer or a redirect URL is valid to be used as within Frontend Logins
  * for redirects.
+ *
  * @internal for now as it might get adopted for further streamlining against other validation paradigms
  */
 class RedirectUrlValidator implements LoggerAwareInterface

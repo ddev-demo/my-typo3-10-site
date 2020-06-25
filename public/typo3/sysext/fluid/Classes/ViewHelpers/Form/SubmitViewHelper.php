@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
 
 /**
  * Creates a submit button.
@@ -36,13 +37,13 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Form;
  *
  * ::
  *
- *    <f:submit name="mySubmit" value="Send Mail"><button>dummy button</button></f:submit>
+ *    <f:form.submit name="mySubmit" value="Send Mail"><button>dummy button</button></f:form.submit>
  *
  * Output::
  *
  *    <input type="submit" name="mySubmit" value="Send Mail" />
  */
-class SubmitViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Form\AbstractFormFieldViewHelper
+class SubmitViewHelper extends AbstractFormFieldViewHelper
 {
     /**
      * @var string

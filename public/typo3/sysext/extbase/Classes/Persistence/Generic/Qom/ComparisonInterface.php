@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /**
  * Filters node-tuples based on the outcome of a binary operation.
@@ -38,7 +39,7 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  * The JCR_OPERATOR_NOT_EQUAL_TO operator is satisfied unless the value of
  * operand1 equals the value of operand2.
  *
- * The JCR_OPERATOR_LESSS_THAN operator is satisfied only if the value of
+ * The JCR_OPERATOR_LESS_THAN operator is satisfied only if the value of
  * operand1 is ordered before the value of operand2.
  *
  * The JCR_OPERATOR_LESS_THAN_OR_EQUAL_TO operator is satisfied unless the value

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Database\Schema;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,9 +15,11 @@ namespace TYPO3\CMS\Core\Database\Schema;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database\Schema;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Database\Event\AlterTableDefinitionStatementsEvent;
 use TYPO3\CMS\Core\Package\PackageManager;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Helper methods to handle raw SQL input and transform it into individual statements
@@ -28,9 +30,9 @@ use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 class SqlReader
 {
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
 
     /**
      * @var PackageManager
@@ -38,14 +40,14 @@ class SqlReader
     protected $packageManager;
 
     /**
-     * @param Dispatcher $signalSlotDispatcher
+     * @param EventDispatcherInterface $eventDispatcher
      * @param PackageManager $packageManager
      * @throws \InvalidArgumentException
      */
-    public function __construct(Dispatcher $signalSlotDispatcher = null, PackageManager $packageManager = null)
+    public function __construct(EventDispatcherInterface $eventDispatcher, PackageManager $packageManager)
     {
-        $this->signalSlotDispatcher = $signalSlotDispatcher ?: GeneralUtility::makeInstance(Dispatcher::class);
-        $this->packageManager = $packageManager ?? GeneralUtility::makeInstance(PackageManager::class);
+        $this->eventDispatcher = $eventDispatcher;
+        $this->packageManager = $packageManager;
     }
 
     /**
@@ -53,9 +55,6 @@ class SqlReader
      *
      * @param bool $withStatic TRUE if sql from ext_tables_static+adt.sql should be loaded, too.
      * @return string Concatenated SQL of loaded extensions ext_tables.sql
-     * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
      */
     public function getTablesDefinitionString(bool $withStatic = false): string
     {
@@ -72,7 +71,9 @@ class SqlReader
             }
         }
 
-        $sqlString = $this->emitTablesDefinitionIsBeingBuiltSignal($sqlString);
+        /** @var AlterTableDefinitionStatementsEvent $event */
+        $event = $this->eventDispatcher->dispatch(new AlterTableDefinitionStatementsEvent($sqlString));
+        $sqlString = $event->getSqlData();
 
         return implode(LF . LF, $sqlString);
     }
@@ -90,11 +91,21 @@ class SqlReader
     {
         $statementArray = [];
         $statementArrayPointer = 0;
+        $isInMultilineComment = false;
         foreach (explode(LF, $dumpContent) as $lineContent) {
             $lineContent = trim($lineContent);
 
             // Skip empty lines and comments
-            if ($lineContent === '' || $lineContent[0] === '#' || strpos($lineContent, '--') === 0) {
+            if ($lineContent === '' || $lineContent[0] === '#' || strpos($lineContent, '--') === 0 ||
+                strpos($lineContent, '/*') === 0 || substr($lineContent, -2) === '*/' || $isInMultilineComment
+            ) {
+                // skip c style multiline comments
+                if (strpos($lineContent, '/*') === 0 && substr($lineContent, -2) !== '*/') {
+                    $isInMultilineComment = true;
+                }
+                if (substr($lineContent, -2) === '*/') {
+                    $isInMultilineComment = false;
+                }
                 continue;
             }
 
@@ -134,41 +145,5 @@ class SqlReader
     public function getCreateTableStatementArray(string $dumpContent): array
     {
         return $this->getStatementArray($dumpContent, '^CREATE TABLE');
-    }
-
-    /**
-     * Emits a signal to manipulate the tables definitions
-     *
-     * @param array $sqlString
-     * @return array
-     * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     */
-    protected function emitTablesDefinitionIsBeingBuiltSignal(array $sqlString): array
-    {
-        // Using the old class name from the install tool here to keep backwards compatibility.
-        $signalReturn = $this->signalSlotDispatcher->dispatch(
-            'TYPO3\\CMS\\Install\\Service\\SqlExpectedSchemaService',
-            'tablesDefinitionIsBeingBuilt',
-            [$sqlString]
-        );
-
-        // This is important to support old associated returns
-        $signalReturn = array_values($signalReturn);
-        $sqlString = $signalReturn[0];
-        if (!is_array($sqlString)) {
-            throw new Exception\UnexpectedSignalReturnValueTypeException(
-                sprintf(
-                    'The signal %s of class %s returned a value of type %s, but array was expected.',
-                    'tablesDefinitionIsBeingBuilt',
-                    __CLASS__,
-                    gettype($sqlString)
-                ),
-                1382351456
-            );
-        }
-
-        return $sqlString;
     }
 }

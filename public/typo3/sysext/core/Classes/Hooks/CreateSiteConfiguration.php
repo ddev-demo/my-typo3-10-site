@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Hooks;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Hooks;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Hooks;
 
 use TYPO3\CMS\Core\Configuration\SiteConfiguration;
 use TYPO3\CMS\Core\Core\Environment;
@@ -31,6 +33,9 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class CreateSiteConfiguration
 {
+    /**
+     * @var int[]
+     */
     protected $allowedPageTypes = [
         PageRepository::DOKTYPE_DEFAULT,
         PageRepository::DOKTYPE_LINK,
@@ -72,14 +77,13 @@ class CreateSiteConfiguration
         $siteIdentifier = $entryPoint . '-' . GeneralUtility::shortMD5((string)$pageId);
 
         if (!$this->siteExistsByRootPageId($pageId)) {
-            $siteConfiguration = GeneralUtility::makeInstance(
-                SiteConfiguration::class,
-                Environment::getConfigPath() . '/sites'
-            );
+            $siteConfiguration = GeneralUtility::makeInstance(SiteConfiguration::class);
+            $normalizedParams = $this->getNormalizedParams();
+            $basePrefix = Environment::isCli() ? $normalizedParams->getSitePath() : $normalizedParams->getSiteUrl();
             $siteConfiguration->createNewBasicSite(
                 $siteIdentifier,
                 $pageId,
-                $this->getNormalizedParams()->getSiteUrl() . $entryPoint
+                $basePrefix . $entryPoint
             );
             $this->updateSlugForPage($pageId);
         }
@@ -88,19 +92,14 @@ class CreateSiteConfiguration
     protected function getNormalizedParams(): NormalizedParams
     {
         $normalizedParams = null;
-        $serverParams = $_SERVER;
+        $serverParams = Environment::isCli() ? ['HTTP_HOST' => 'localhost'] : $_SERVER;
         if (isset($GLOBALS['TYPO3_REQUEST'])) {
             $normalizedParams = $GLOBALS['TYPO3_REQUEST']->getAttribute('normalizedParams');
             $serverParams = $GLOBALS['TYPO3_REQUEST']->getServerParams();
         }
 
-        if (!($normalizedParams instanceof NormalizedParams)) {
-            $normalizedParams = new NormalizedParams(
-                $serverParams,
-                $GLOBALS['TYPO3_CONF_VARS']['SYS'],
-                Environment::getCurrentScript(),
-                Environment::getPublicPath()
-            );
+        if (!$normalizedParams instanceof NormalizedParams) {
+            $normalizedParams = NormalizedParams::createFromServerParams($serverParams);
         }
 
         return $normalizedParams;

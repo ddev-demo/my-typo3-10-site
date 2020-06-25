@@ -1,5 +1,5 @@
-{namespace be = TYPO3\CMS\Backend\ViewHelpers}
-{namespace bu = TYPO3\CMS\Beuser\ViewHelpers}
+{namespace be=TYPO3\CMS\Backend\ViewHelpers}
+{namespace bu=TYPO3\CMS\Beuser\ViewHelpers}
 
 <f:layout name="Permission" />
 
@@ -8,10 +8,10 @@
 </f:section>
 
 <f:section name="content">
-
     <div class="form-group">
         <label for="depth"><f:translate key="LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:Depth" />:</label>
-        <f:form.select class="form-control" id="depth" value="{depth}" options="{depthOptions}" additionalAttributes="{onchange: 'window.location.href = \'{depthBaseUrl}\'.replace(\'__DEPTH__\', this.options[this.selectedIndex].value);'}" />
+        <f:form.select class="form-control" id="depth" value="{depth}" options="{depthOptions}"
+                        additionalAttributes="{data-global-event: 'change', data-action-navigate: '$data=~s/$value/', data-navigate-value:depthBaseUrl}" />
     </div>
 
     <div class="panel panel-default panel-space">
@@ -37,7 +37,7 @@
                                 <td align="left" class="nowrap">
                                     <f:link.action
                                         action="edit"
-                                        arguments="{id: '{f:if(condition: data.row._ORIG_uid, then: data.row._ORIG_uid, else: data.row.uid)}', depth: depth, returnUrl: '{f:uri.action(action: \'index\', arguments: {id: currentId, depth: depth})}'}"
+                                        arguments="{id: '{f:if(condition: data.row._ORIG_uid, then: data.row._ORIG_uid, else: data.row.uid)}', depth: depth, returnUrl: '{f:uri.action(action: \'index\', arguments: \'{id: currentId, depth: depth}\')}'}"
                                         title="{f:translate(key: 'LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:ch_permissions')}"
                                     >
                                         <f:format.raw>{data.depthData}{data.HTML}</f:format.raw>
@@ -51,7 +51,7 @@
                                     </f:comment>
                                     <f:link.action
                                         action="edit"
-                                        arguments="{id: '{f:if(condition: data.row._ORIG_uid, then: data.row._ORIG_uid, else: data.row.uid)}', depth: depth, returnUrl: '{f:uri.action(action: \'index\', arguments: {id: currentId, depth: depth})}'}"
+                                        arguments="{id: '{f:if(condition: data.row._ORIG_uid, then: data.row._ORIG_uid, else: data.row.uid)}', depth: depth, returnUrl: '{f:uri.action(action: \'index\', arguments: \'{id: currentId, depth: depth}\')}'}"
                                         class="btn btn-default"
                                         title="{f:translate(key: 'LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:ch_permissions')}"
                                     >
@@ -139,7 +139,7 @@
     <f:format.raw>{cshItem}</f:format.raw>
 
     <h3><f:translate key="LLL:EXT:beuser/Resources/Private/Language/locallang_mod_permission.xlf:Legend" />:</h3>
-    <div class="beuser-legend">
+    <div class="access-legend">
         <table>
             <tr>
                 <td class="edge nowrap"><span><span></span></span></td>

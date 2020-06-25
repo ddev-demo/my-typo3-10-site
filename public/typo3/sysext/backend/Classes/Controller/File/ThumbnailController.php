@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Controller\File;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,11 +15,13 @@ namespace TYPO3\CMS\Backend\Controller\File;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\File;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
-use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\Exception;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -51,7 +53,7 @@ class ThumbnailController
                 $parameters['fileId'] ?? null,
                 $parameters['configuration'] ?? []
             );
-        } catch (\TYPO3\CMS\Core\Resource\Exception $exception) {
+        } catch (Exception $exception) {
             // catch and handle only resource related exceptions
             $response = $this->generateNotFoundResponse();
         }
@@ -87,7 +89,7 @@ class ThumbnailController
      */
     protected function generateThumbnail($fileId, array $configuration): ResponseInterface
     {
-        $file = ResourceFactory::getInstance()->getFileObject($fileId);
+        $file = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject($fileId);
         if ($file === null || $file->isMissing()) {
             return $this->generateNotFoundResponse();
         }

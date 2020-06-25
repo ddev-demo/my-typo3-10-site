@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Domain\Repository;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Impexp\Domain\Repository;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Impexp\Domain\Repository;
 
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -195,7 +196,7 @@ class PresetRepository
                         $inData = $inData_temp;
                     }
                 } else {
-                    $msg = 'ERROR: No configuratio data found in preset record!';
+                    $msg = 'ERROR: No configuration data found in preset record!';
                     $err = true;
                 }
             } else {

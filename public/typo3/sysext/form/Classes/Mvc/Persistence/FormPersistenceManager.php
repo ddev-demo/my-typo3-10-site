@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Mvc\Persistence;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,6 +15,12 @@ namespace TYPO3\CMS\Form\Mvc\Persistence;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Mvc\Persistence;
+
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Resource\Exception\FolderDoesNotExistException;
@@ -26,6 +30,7 @@ use TYPO3\CMS\Core\Resource\Filter\FileExtensionFilter;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -33,6 +38,7 @@ use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Mvc\Configuration\ConfigurationManagerInterface;
 use TYPO3\CMS\Form\Mvc\Configuration\Exception\FileWriteException;
 use TYPO3\CMS\Form\Mvc\Configuration\Exception\NoSuchFileException;
+use TYPO3\CMS\Form\Mvc\Configuration\YamlSource;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\NoUniqueIdentifierException;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\NoUniquePersistenceIdentifierException;
 use TYPO3\CMS\Form\Mvc\Persistence\Exception\PersistenceManagerException;
@@ -81,7 +87,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      * @param \TYPO3\CMS\Form\Mvc\Configuration\YamlSource $yamlSource
      * @internal
      */
-    public function injectYamlSource(\TYPO3\CMS\Form\Mvc\Configuration\YamlSource $yamlSource)
+    public function injectYamlSource(YamlSource $yamlSource)
     {
         $this->yamlSource = $yamlSource;
     }
@@ -90,7 +96,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      * @param \TYPO3\CMS\Core\Resource\StorageRepository $storageRepository
      * @internal
      */
-    public function injectStorageRepository(\TYPO3\CMS\Core\Resource\StorageRepository $storageRepository)
+    public function injectStorageRepository(StorageRepository $storageRepository)
     {
         $this->storageRepository = $storageRepository;
     }
@@ -98,7 +104,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     /**
      * @param \TYPO3\CMS\Form\Slot\FilePersistenceSlot $filePersistenceSlot
      */
-    public function injectFilePersistenceSlot(\TYPO3\CMS\Form\Slot\FilePersistenceSlot $filePersistenceSlot)
+    public function injectFilePersistenceSlot(FilePersistenceSlot $filePersistenceSlot)
     {
         $this->filePersistenceSlot = $filePersistenceSlot;
     }
@@ -106,7 +112,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     /**
      * @param \TYPO3\CMS\Core\Resource\ResourceFactory $resourceFactory
      */
-    public function injectResourceFactory(\TYPO3\CMS\Core\Resource\ResourceFactory $resourceFactory)
+    public function injectResourceFactory(ResourceFactory $resourceFactory)
     {
         $this->resourceFactory = $resourceFactory;
     }
@@ -160,7 +166,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     /**
      * Save the array form representation identified by $persistenceIdentifier.
      * Only files with the extension .form.yaml are saved.
-     * If the formDefinition is located within a EXT: resource, save is only
+     * If the formDefinition is located within an EXT: resource, save is only
      * allowed if the configuration path
      * TYPO3.CMS.Form.persistenceManager.allowSaveToExtensionPaths
      * is set to true.
@@ -227,7 +233,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
             $fileToDelete = GeneralUtility::getFileAbsFileName($persistenceIdentifier);
             unlink($fileToDelete);
         } else {
-            list($storageUid, $fileIdentifier) = explode(':', $persistenceIdentifier, 2);
+            [$storageUid, $fileIdentifier] = explode(':', $persistenceIdentifier, 2);
             $storage = $this->getStorageByUid((int)$storageUid);
             $file = $storage->getFile($fileIdentifier);
             if (!$storage->checkFileActionPermission('delete', $file)) {
@@ -253,7 +259,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
                     $exists = file_exists(GeneralUtility::getFileAbsFileName($persistenceIdentifier));
                 }
             } else {
-                list($storageUid, $fileIdentifier) = explode(':', $persistenceIdentifier, 2);
+                [$storageUid, $fileIdentifier] = explode(':', $persistenceIdentifier, 2);
                 $storage = $this->getStorageByUid((int)$storageUid);
                 $exists = $storage->hasFile($fileIdentifier);
             }
@@ -331,7 +337,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
             }
         }
 
-        return $forms;
+        return $this->sortForms($forms);
     }
 
     /**
@@ -361,7 +367,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
                 Folder::FILTER_MODE_USE_OWN_AND_STORAGE_FILTERS,
                 true
             );
-            $filesFromStorageFolders = $filesFromStorageFolders + $files;
+            $filesFromStorageFolders = array_merge($filesFromStorageFolders, array_values($files));
             $storage->resetFileAndFolderNameFiltersToDefault();
         }
 
@@ -397,7 +403,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      *
      * Only registered mountpoints from
      * TYPO3.CMS.Form.persistenceManager.allowedFileMounts
-     * are listet.
+     * are listed.
      *
      * @return Folder[]
      * @internal
@@ -405,6 +411,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     public function getAccessibleFormStorageFolders(): array
     {
         $storageFolders = [];
+
         if (
             !isset($this->formSettings['persistenceManager']['allowedFileMounts'])
             || !is_array($this->formSettings['persistenceManager']['allowedFileMounts'])
@@ -414,8 +421,9 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
         }
 
         foreach ($this->formSettings['persistenceManager']['allowedFileMounts'] as $allowedFileMount) {
-            list($storageUid, $fileMountIdentifier) = explode(':', $allowedFileMount, 2);
-            $fileMountIdentifier = rtrim($fileMountIdentifier, '/') . '/';
+            [$storageUid, $fileMountPath] = explode(':', $allowedFileMount, 2);
+            // like "/form_definitions/" or "/group_homes/1/form_definitions/"
+            $fileMountPath = rtrim($fileMountPath, '/') . '/';
 
             try {
                 $storage = $this->getStorageByUid((int)$storageUid);
@@ -423,15 +431,41 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
                 continue;
             }
 
+            $isStorageFileMount = false;
+            $parentFolder = $storage->getRootLevelFolder(false);
+
+            foreach ($storage->getFileMounts() as $storageFileMount) {
+                /** @var \TYPO3\CMS\Core\Resource\Folder */
+                $storageFileMountFolder = $storageFileMount['folder'];
+
+                // Normally should use ResourceStorage::isWithinFolder() to check if the configured file mount path is within a storage file mount but this requires a valid Folder object and thus a directory which already exists. And the folder could simply not exist yet.
+                if (StringUtility::beginsWith($fileMountPath, $storageFileMountFolder->getIdentifier())) {
+                    $isStorageFileMount = true;
+                    $parentFolder = $storageFileMountFolder;
+                }
+            }
+
+            // Get storage folder object, create it if missing
             try {
-                $folder = $storage->getFolder($fileMountIdentifier);
-            } catch (FolderDoesNotExistException $e) {
-                $storage->createFolder($fileMountIdentifier);
-                continue;
+                $fileMountFolder = $storage->getFolder($fileMountPath);
             } catch (InsufficientFolderAccessPermissionsException $e) {
                 continue;
+            } catch (FolderDoesNotExistException $e) {
+                if ($isStorageFileMount) {
+                    $fileMountPath = substr(
+                        $fileMountPath,
+                        strlen($parentFolder->getIdentifier())
+                    );
+                }
+
+                try {
+                    $fileMountFolder = $storage->createFolder($fileMountPath, $parentFolder);
+                } catch (InsufficientFolderAccessPermissionsException $e) {
+                    continue;
+                }
             }
-            $storageFolders[$allowedFileMount] = $folder;
+
+            $storageFolders[$allowedFileMount] = $fileMountFolder;
         }
         return $storageFolders;
     }
@@ -441,7 +475,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      *
      * Only registered mountpoints from
      * TYPO3.CMS.Form.persistenceManager.allowedExtensionPaths
-     * are listet.
+     * are listed.
      *
      * @return array
      * @internal
@@ -548,7 +582,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     }
 
     /**
-     * Check if a identifier is already used by a formDefintion.
+     * Check if an identifier is already used by a formDefinition.
      *
      * @param string $identifier
      * @return bool
@@ -577,7 +611,7 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
      */
     protected function getOrCreateFile(string $persistenceIdentifier): File
     {
-        list($storageUid, $fileIdentifier) = explode(':', $persistenceIdentifier, 2);
+        [$storageUid, $fileIdentifier] = explode(':', $persistenceIdentifier, 2);
         $storage = $this->getStorageByUid((int)$storageUid);
         $pathinfo = PathUtility::pathinfo($fileIdentifier);
 
@@ -770,5 +804,28 @@ class FormPersistenceManager implements FormPersistenceManagerInterface
     protected function looksLikeAFormDefinition(array $data): bool
     {
         return isset($data['identifier'], $data['type']) && !empty($data['identifier']) && trim($data['type']) === 'Form';
+    }
+
+    /**
+     * @param array $forms
+     * @return array
+     */
+    protected function sortForms(array $forms): array
+    {
+        $keys = $this->formSettings['persistenceManager']['sortByKeys'] ?? ['name', 'fileUid'];
+        $ascending = $this->formSettings['persistenceManager']['sortAscending'] ?? true;
+
+        usort($forms, function (array $a, array $b) use ($keys) {
+            foreach ($keys as $key) {
+                if (isset($a[$key]) && isset($b[$key])) {
+                    $diff = strcasecmp((string)$a[$key], (string)$b[$key]);
+                    if ($diff) {
+                        return $diff;
+                    }
+                }
+            }
+        });
+
+        return ($ascending) ? $forms : array_reverse($forms);
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Error;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,15 @@ namespace TYPO3\CMS\Core\Error;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Error;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\SysLog\Action as SystemLogGenericAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
+use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 
@@ -120,9 +124,9 @@ abstract class AbstractExceptionHandler implements ExceptionHandlerInterface, Si
             'sys_log',
             [
                 'userid' => $userId,
-                'type' => 5,
-                'action' => 0,
-                'error' => 2,
+                'type' => SystemLogType::ERROR,
+                'action' => SystemLogGenericAction::UNDEFINED,
+                'error' => SystemLogErrorClassification::SYSTEM_ERROR,
                 'details_nr' => 0,
                 'details' => str_replace('%', '%%', $logMessage),
                 'log_data' => empty($data) ? '' : serialize($data),

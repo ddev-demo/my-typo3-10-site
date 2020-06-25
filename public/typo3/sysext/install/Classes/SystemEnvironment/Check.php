@@ -1,5 +1,6 @@
 <?php
-namespace TYPO3\CMS\Install\SystemEnvironment;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +15,9 @@ namespace TYPO3\CMS\Install\SystemEnvironment;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\SystemEnvironment;
+
+use TYPO3\CMS\Core\Information\Typo3Information;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 
@@ -62,8 +66,7 @@ class Check implements CheckInterface
         'gd',
         'hash',
         'json',
-        'mysqli',
-        'openssl',
+        'PDO',
         'session',
         'SPL',
         'standard',
@@ -77,8 +80,19 @@ class Check implements CheckInterface
      */
     protected $suggestedPhpExtensions = [
         'fileinfo' => 'This extension is used for proper file type detection in the File Abstraction Layer.',
-        'intl' => 'This extension is used for correct language and locale handling.'
+        'intl' => 'This extension is used for correct language and locale handling.',
+        'openssl' => 'This extension is used for sending SMTP mails over an encrypted channel endpoint, and for extensions such as "rsaauth".'
     ];
+
+    public function __construct()
+    {
+        $this->messageQueue = new FlashMessageQueue('install');
+    }
+
+    public function getMessageQueue(): FlashMessageQueue
+    {
+        return $this->messageQueue;
+    }
 
     /**
      * Get all status information as array with status objects
@@ -87,7 +101,6 @@ class Check implements CheckInterface
      */
     public function getStatus(): FlashMessageQueue
     {
-        $this->messageQueue = new FlashMessageQueue('install');
         $this->checkCurrentDirectoryIsInIncludePath();
         $this->checkFileUploadEnabled();
         $this->checkPostUploadSizeIsHigherOrEqualMaximumFileUploadSize();
@@ -95,11 +108,9 @@ class Check implements CheckInterface
         $this->checkPhpVersion();
         $this->checkMaxExecutionTime();
         $this->checkDisableFunctions();
-        $this->checkMysqliReconnectSetting();
         $this->checkDocRoot();
         $this->checkOpenBaseDir();
         $this->checkXdebugMaxNestingLevel();
-        $this->checkOpenSslInstalled();
 
         $this->checkMaxInputVars();
         $this->checkReflectionDocComment();
@@ -190,10 +201,15 @@ class Check implements CheckInterface
                 'Maximum size for POST requests is smaller than maximum upload filesize in PHP',
                 FlashMessage::ERROR
             ));
+        } elseif ($maximumPostSize === $maximumUploadFilesize) {
+            $this->messageQueue->enqueue(new FlashMessage(
+                'The maximum size for file uploads is set to ' . ini_get('upload_max_filesize'),
+                'Maximum post upload size correlates with maximum upload file size in PHP'
+            ));
         } else {
             $this->messageQueue->enqueue(new FlashMessage(
-                'The maximum size for file uploads is actually set to ' . ini_get('upload_max_filesize'),
-                'Maximum post upload size correlates with maximum upload file size in PHP'
+                'The maximum size for file uploads is set to ' . ini_get('upload_max_filesize'),
+                'Maximum post upload size is higher than maximum upload file size in PHP, which is fine.'
             ));
         }
     }
@@ -401,29 +417,6 @@ class Check implements CheckInterface
     }
 
     /**
-     * Verify that mysqli.reconnect is set to 0 in order to avoid improper reconnects
-     */
-    protected function checkMysqliReconnectSetting()
-    {
-        $currentMysqliReconnectSetting = ini_get('mysqli.reconnect');
-        if ($currentMysqliReconnectSetting === '1') {
-            $this->messageQueue->enqueue(new FlashMessage(
-                'mysqli.reconnect=1' . LF
-                    . 'PHP is configured to automatically reconnect the database connection on disconnection.' . LF
-                    . ' Warning: If (e.g. during a long-running task) the connection is dropped and automatically reconnected, '
-                    . ' it may not be reinitialized properly (e.g. charset) and write mangled data to the database!',
-                'PHP mysqli.reconnect is enabled',
-                FlashMessage::ERROR
-            ));
-        } else {
-            $this->messageQueue->enqueue(new FlashMessage(
-                '',
-                'PHP mysqli.reconnect is fine'
-            ));
-        }
-    }
-
-    /**
      * Check for doc_root ini setting
      */
     protected function checkDocRoot()
@@ -519,38 +512,6 @@ class Check implements CheckInterface
     }
 
     /**
-     * Check accessibility and functionality of OpenSSL
-     */
-    protected function checkOpenSslInstalled()
-    {
-        if (extension_loaded('openssl')) {
-            $testKey = @openssl_pkey_new();
-            if (is_resource($testKey)) {
-                openssl_free_key($testKey);
-                $this->messageQueue->enqueue(new FlashMessage(
-                    '',
-                    'PHP OpenSSL extension installed properly'
-                ));
-            } else {
-                $this->messageQueue->enqueue(new FlashMessage(
-                    'Something went wrong while trying to create a new private key for testing.'
-                        . ' Please check the integration of the PHP OpenSSL extension and if it is installed correctly.',
-                    'PHP OpenSSL extension not working',
-                    FlashMessage::ERROR
-                ));
-            }
-        } else {
-            $this->messageQueue->enqueue(new FlashMessage(
-                'OpenSSL is a PHP extension to encrypt/decrypt data between requests.'
-                    . ' TYPO3 CMS requires it to be able to encrypt stored passwords to improve the security in the'
-                    . ' database layer.',
-                'PHP OpenSSL extension not loaded',
-                FlashMessage::ERROR
-            ));
-        }
-    }
-
-    /**
      * Get max_input_vars status
      */
     protected function checkMaxInputVars()
@@ -609,7 +570,7 @@ class Check implements CheckInterface
                     . '* The PHP extension eaccelerator is known to break this if'
                     . ' it is compiled without --with-eaccelerator-doc-comment-inclusion flag.'
                     . ' This compile flag must be specified, otherwise TYPO3 CMS will not work.' . LF
-                    . 'For more information take a look in our wiki ' . TYPO3_URL_WIKI_OPCODECACHE . '.',
+                    . 'For more information take a look in our wiki ' . Typo3Information::URL_OPCACHE . '.',
                 'PHP Doc comment reflection broken',
                 FlashMessage::ERROR
             ));
@@ -655,7 +616,7 @@ class Check implements CheckInterface
      * @param bool $required
      * @param string $purpose
      */
-    protected function checkPhpExtension(string $extension, bool $required = true, string $purpose = '')
+    public function checkPhpExtension(string $extension, bool $required = true, string $purpose = '')
     {
         if (!extension_loaded($extension)) {
             $this->messageQueue->enqueue(new FlashMessage(

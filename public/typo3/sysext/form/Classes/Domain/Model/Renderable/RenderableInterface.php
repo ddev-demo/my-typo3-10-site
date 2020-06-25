@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Model\Renderable;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\Domain\Model\Renderable;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\Renderable;
 
 /**
  * Base interface which all Form Parts except the FormDefinition must adhere
@@ -64,8 +68,8 @@ interface RenderableInterface extends RootRenderableInterface
     /**
      * This function is called after a renderable has been removed from its parent
      * renderable. The function should make sure to clean up the internal state,
-     * like reseting $this->parentRenderable or deregistering the renderable
-     * at the form.
+     * like resetting $this->parentRenderable or deregistering the renderable
+     * of the form.
      *
      * @internal
      */

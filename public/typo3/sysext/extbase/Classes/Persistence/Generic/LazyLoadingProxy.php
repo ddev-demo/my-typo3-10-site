@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Persistence\Generic;
+
 use TYPO3\CMS\Extbase\DomainObject\AbstractDomainObject;
 use TYPO3\CMS\Extbase\DomainObject\DomainObjectInterface;
 use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
@@ -27,7 +28,7 @@ use TYPO3\CMS\Extbase\Persistence\Generic\Mapper\DataMapper;
 class LazyLoadingProxy implements \Iterator, LoadingStrategyInterface
 {
     /**
-     * @var ?DataMapper
+     * @var DataMapper|null
      */
     protected $dataMapper;
 
@@ -121,6 +122,14 @@ class LazyLoadingProxy implements \Iterator, LoadingStrategyInterface
     {
         $type = $this->dataMapper->getType(get_class($this->parentObject), $this->propertyName);
         return $type . ':' . $this->fieldValue;
+    }
+
+    /**
+     * @return int
+     */
+    public function getUid(): int
+    {
+        return (int)$this->fieldValue;
     }
 
     /**

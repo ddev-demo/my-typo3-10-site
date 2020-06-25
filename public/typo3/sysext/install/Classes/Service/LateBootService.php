@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Install\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,10 @@ namespace TYPO3\CMS\Install\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Service;
+
 use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Core\Bootstrap;
 use TYPO3\CMS\Core\DependencyInjection\ContainerBuilder;
 use TYPO3\CMS\Core\Imaging\IconRegistry;
@@ -46,7 +49,7 @@ class LateBootService
 
     /**
      * @param ContainerBuilder $containerBuilder
-     * @param ConteinerInterface $failsafeContainer
+     * @param ContainerInterface $failsafeContainer
      */
     public function __construct(ContainerBuilder $containerBuilder, ContainerInterface $failsafeContainer)
     {
@@ -68,15 +71,12 @@ class LateBootService
     private function prepareContainer(): ContainerInterface
     {
         $packageManager = $this->failsafeContainer->get(PackageManager::class);
-
-        // Use caching for the full boot – uncached symfony autowiring for every install-tool lateboot request would be too slow.
-        $disableCaching = false;
-        $coreCache = Bootstrap::createCache('core', $disableCaching);
+        $dependencyInjectionContainerCache = $this->failsafeContainer->get('cache.di');
 
         $failsafe = false;
 
         // Build a non-failsafe container which is required for loading ext_localconf
-        return $this->container = $this->containerBuilder->createDependencyInjectionContainer($packageManager, $coreCache, $failsafe);
+        return $this->container = $this->containerBuilder->createDependencyInjectionContainer($packageManager, $dependencyInjectionContainerCache, $failsafe);
     }
 
     /**
@@ -88,12 +88,13 @@ class LateBootService
      * @param array $backup
      * @return array
      */
-    public function makeCurrent(ContainerInterface $container = null, array $oldBackup = []): array
+    public function makeCurrent(ContainerInterface $container = null, array $backup = []): array
     {
-        $container = $container ?? $this->failsafeContainer;
+        $container = $container ?? $backup['container'] ?? $this->failsafeContainer;
 
-        $backup = [
-            'singletonInstances', GeneralUtility::getSingletonInstances(),
+        $newBackup = [
+            'singletonInstances' => GeneralUtility::getSingletonInstances(),
+            'container' => GeneralUtility::getContainer(),
         ];
 
         GeneralUtility::purgeInstances();
@@ -102,20 +103,27 @@ class LateBootService
         GeneralUtility::setContainer($container);
         ExtensionManagementUtility::setPackageManager($container->get(PackageManager::class));
 
-        $backupSingletonInstances = $oldBackup['singletonInstances'] ?? [];
+        $backupSingletonInstances = $backup['singletonInstances'] ?? [];
         foreach ($backupSingletonInstances as $className => $instance) {
             GeneralUtility::setSingletonInstance($className, $instance);
         }
 
-        return $backup;
+        return $newBackup;
     }
 
     /**
      * Bootstrap a non-failsafe container and load ext_localconf
      *
+     * Use by actions like the database analyzer and the upgrade wizards which
+     * need additional bootstrap actions performed.
+     *
+     * Those actions can potentially fatal if some old extension is loaded that triggers
+     * a fatal in ext_localconf or ext_tables code! Use only if really needed.
+     *
+     * @param bool $resetContainer
      * @return ContainerInterface
      */
-    public function loadExtLocalconfDatabaseAndExtTables(): ContainerInterface
+    public function loadExtLocalconfDatabaseAndExtTables(bool $resetContainer = true): ContainerInterface
     {
         $container = $this->getContainer();
 
@@ -125,14 +133,23 @@ class LateBootService
         $assetsCache = $container->get('cache.assets');
         IconRegistry::setCache($assetsCache);
         PageRenderer::setCache($assetsCache);
+        $eventDispatcher = $container->get(EventDispatcherInterface::class);
+        ExtensionManagementUtility::setEventDispatcher($eventDispatcher);
         Bootstrap::loadTypo3LoadedExtAndExtLocalconf(false);
         Bootstrap::unsetReservedGlobalVariables();
         $container->get('boot.state')->done = true;
         Bootstrap::loadBaseTca(false);
         Bootstrap::loadExtTables(false);
 
-        $this->makeCurrent(null, $backup);
+        if ($resetContainer) {
+            $this->makeCurrent(null, $backup);
+        }
 
         return $container;
+    }
+
+    public function resetGlobalContainer(): void
+    {
+        $this->makeCurrent(null, []);
     }
 }

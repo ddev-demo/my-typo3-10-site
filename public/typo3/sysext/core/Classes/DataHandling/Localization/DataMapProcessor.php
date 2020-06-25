@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\DataHandling\Localization;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\DataHandling\Localization;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\DataHandling\Localization;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -80,7 +81,7 @@ class DataMapProcessor
      * Class generator
      *
      * @param array $dataMap The submitted data-map to be worked on
-     * @param BackendUserAuthentication $backendUser Forwared backend-user scope
+     * @param BackendUserAuthentication $backendUser Forwarded backend-user scope
      * @return DataMapProcessor
      */
     public static function instance(array $dataMap, BackendUserAuthentication $backendUser)
@@ -94,7 +95,7 @@ class DataMapProcessor
 
     /**
      * @param array $dataMap The submitted data-map to be worked on
-     * @param BackendUserAuthentication $backendUser Forwared backend-user scope
+     * @param BackendUserAuthentication $backendUser Forwarded backend-user scope
      */
     public function __construct(array $dataMap, BackendUserAuthentication $backendUser)
     {
@@ -440,6 +441,7 @@ class DataMapProcessor
      */
     protected function synchronizeDirectRelations(DataMapItem $item, string $fieldName, array $fromRecord)
     {
+        $specialTableName = null;
         $configuration = $GLOBALS['TCA'][$item->getTableName()]['columns'][$fieldName];
         $isSpecialLanguageField = ($configuration['config']['special'] ?? null) === 'languages';
 
@@ -500,7 +502,7 @@ class DataMapProcessor
 
     /**
      * Handle synchronization of inline relations.
-     * Inline Relational Record Editong ("IRRE") always is modelled as 1:n composite relation - which means that
+     * Inline Relational Record Editing ("IRRE") always is modelled as 1:n composite relation - which means that
      * direct(!) children cannot exist without their parent. Removing a relative parent results in cascaded removal
      * of all direct(!) children as well.
      *
@@ -549,9 +551,9 @@ class DataMapProcessor
         // missing elements that are persisted at the language parent/source, but not translated yet
         $missingAncestorIds = array_diff($suggestedAncestorIds, array_keys($dependentIdMap));
         // persisted elements that should be copied or localized
-        $createAncestorIds = $this->filterNumericIds($missingAncestorIds, true);
+        $createAncestorIds = $this->filterNumericIds($missingAncestorIds);
         // non-persisted elements that should be duplicated in data-map directly
-        $populateAncestorIds = $this->filterNumericIds($missingAncestorIds, false);
+        $populateAncestorIds = array_diff($missingAncestorIds, $createAncestorIds);
         // this desired state map defines the final result of child elements in their parent translation
         $desiredIdMap = array_combine($suggestedAncestorIds, $suggestedAncestorIds);
         // update existing translations in the desired state map
@@ -849,6 +851,10 @@ class DataMapProcessor
      */
     protected function fetchTranslationValues(string $tableName, array $fieldNames, array $ids)
     {
+        if (empty($ids)) {
+            return [];
+        }
+
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($tableName);
         $queryBuilder->getRestrictions()
@@ -892,7 +898,7 @@ class DataMapProcessor
      */
     protected function fetchDependencies(string $tableName, array $ids)
     {
-        if (!BackendUtility::isTableLocalizable($tableName)) {
+        if (empty($ids) || !BackendUtility::isTableLocalizable($tableName)) {
             return [];
         }
 
@@ -907,8 +913,8 @@ class DataMapProcessor
         }
         $fieldNamesMap = array_combine($fieldNames, $fieldNames);
 
-        $persistedIds = $this->filterNumericIds($ids, true);
-        $createdIds = $this->filterNumericIds($ids, false);
+        $persistedIds = $this->filterNumericIds($ids);
+        $createdIds = array_diff($ids, $persistedIds);
         $dependentElements = $this->fetchDependentElements($tableName, $persistedIds, $fieldNames);
 
         foreach ($createdIds as $createdId) {
@@ -969,7 +975,12 @@ class DataMapProcessor
      */
     protected function fetchDependentIdMap(string $tableName, array $ids, int $desiredLanguage)
     {
-        $ids = $this->filterNumericIds($ids, true);
+        $ancestorIdMap = [];
+        if (empty($ids)) {
+            return [];
+        }
+
+        $ids = $this->filterNumericIds($ids);
         $isTranslatable = BackendUtility::isTableLocalizable($tableName);
         $originFieldName = ($GLOBALS['TCA'][$tableName]['ctrl']['origUid'] ?? null);
 
@@ -1049,7 +1060,9 @@ class DataMapProcessor
      */
     protected function fetchDependentElements(string $tableName, array $ids, array $fieldNames)
     {
-        $ids = $this->filterNumericIds($ids, true);
+        if (empty($ids)) {
+            return [];
+        }
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($tableName);
@@ -1059,7 +1072,7 @@ class DataMapProcessor
             ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class, $this->backendUser->workspace, false));
 
         $zeroParameter = $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT);
-        $ids = array_filter($ids, [MathUtility::class, 'canBeInterpretedAsInteger']);
+        $ids = $this->filterNumericIds($ids);
         $idsParameter = $queryBuilder->createNamedParameter($ids, Connection::PARAM_INT_ARRAY);
 
         // fetch by language dependency
@@ -1140,17 +1153,17 @@ class DataMapProcessor
      * Return only ids that are integer - so no "NEW..." values
      *
      * @param string[]|int[] $ids
-     * @param bool $numeric
-     * @return int[]|string[]
+     * @return int[]
      */
-    protected function filterNumericIds(array $ids, bool $numeric = true)
+    protected function filterNumericIds(array $ids)
     {
-        return array_filter(
+        $ids = array_filter(
             $ids,
-            function ($id) use ($numeric) {
-                return MathUtility::canBeInterpretedAsInteger($id) === $numeric;
+            function ($id) {
+                return MathUtility::canBeInterpretedAsInteger($id);
             }
         );
+        return array_map('intval', $ids);
     }
 
     /**
@@ -1306,13 +1319,14 @@ class DataMapProcessor
      * Prefixes language title if applicable for the accordant field name in raw data-map item.
      *
      * @param string $tableName
-     * @param $fromId
+     * @param string|int $fromId
      * @param int $language
      * @param array $data
      * @return array
      */
     protected function prefixLanguageTitle(string $tableName, $fromId, int $language, array $data): array
     {
+        $prefix = '';
         $prefixFieldNames = array_intersect(
             array_keys($data),
             $this->getPrefixLanguageTitleFieldNames($tableName)
@@ -1323,7 +1337,7 @@ class DataMapProcessor
 
         $languageService = $this->getLanguageService();
         $languageRecord = BackendUtility::getRecord('sys_language', $language, 'title');
-        list($pageId) = BackendUtility::getTSCpid($tableName, $fromId, $data['pid'] ?? null);
+        [$pageId] = BackendUtility::getTSCpid($tableName, $fromId, $data['pid'] ?? null);
 
         $tsConfigTranslateToMessage = BackendUtility::getPagesTSconfig($pageId)['TCEMAIN.']['translateToMessage'] ?? '';
         if (!empty($tsConfigTranslateToMessage)) {
@@ -1389,7 +1403,9 @@ class DataMapProcessor
         }
 
         foreach ($GLOBALS['TCA'][$tableName]['columns'] as $fieldName => $configuration) {
-            if (($configuration['l10n_mode'] ?? null) === 'exclude') {
+            if (($configuration['l10n_mode'] ?? null) === 'exclude'
+                && ($configuration['config']['type'] ?? null) !== 'none'
+            ) {
                 $localizationExcludeFieldNames[] = $fieldName;
             }
         }

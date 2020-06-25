@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Security;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,14 @@ namespace TYPO3\CMS\Core\Resource\Security;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Security;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\DataHandling\DataHandlerCheckModifyAccessListHookInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
@@ -57,7 +59,7 @@ class FileMetadataPermissionsAspect implements DataHandlerCheckModifyAccessListH
      * We "abuse" it here to actually check if access is allowed to sys_file_metadata.
      *
      *
-     * @param int &$accessAllowed Whether the user has access to modify a table
+     * @param int $accessAllowed Whether the user has access to modify a table
      * @param string $table The name of the table to be modified
      * @param DataHandler $parent The calling parent object
      * @throws \UnexpectedValueException
@@ -162,7 +164,7 @@ class FileMetadataPermissionsAspect implements DataHandlerCheckModifyAccessListH
             if (strpos($file, 'sys_file_') !== false) {
                 $file = substr($file, strlen('sys_file_'));
             }
-            $fileObject = ResourceFactory::getInstance()->getFileObject((int)$file);
+            $fileObject = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject((int)$file);
             $accessAllowed = $fileObject->checkActionPermission('editMeta');
         }
         return $accessAllowed;

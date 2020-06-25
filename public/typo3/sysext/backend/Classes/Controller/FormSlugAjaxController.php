@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Backend\Controller;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,11 +15,15 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\DataHandling\Model\RecordStateFactory;
 use TYPO3\CMS\Core\DataHandling\SlugHelper;
 use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -73,6 +76,12 @@ class FormSlugAjaxController extends AbstractFormEngineAjaxController
         $fieldName = $queryParameters['fieldName'];
 
         $fieldConfig = $GLOBALS['TCA'][$tableName]['columns'][$fieldName]['config'] ?? [];
+        $row = BackendUtility::getRecord($tableName, $recordId);
+        $recordType = BackendUtility::getTCAtypeValue($tableName, $row);
+        $columnsOverridesConfigOfField = $GLOBALS['TCA'][$tableName]['types'][$recordType]['columnsOverrides'][$fieldName]['config'] ?? null;
+        if ($columnsOverridesConfigOfField) {
+            ArrayUtility::mergeRecursiveWithOverrule($fieldConfig, $columnsOverridesConfigOfField);
+        }
         if (empty($fieldConfig)) {
             throw new \RuntimeException(
                 'No valid field configuration for table ' . $tableName . ' field name ' . $fieldName . ' found.',
@@ -81,12 +90,16 @@ class FormSlugAjaxController extends AbstractFormEngineAjaxController
         }
 
         $evalInfo = !empty($fieldConfig['eval']) ? GeneralUtility::trimExplode(',', $fieldConfig['eval'], true) : [];
+        $hasToBeUniqueInDb = in_array('unique', $evalInfo, true);
         $hasToBeUniqueInSite = in_array('uniqueInSite', $evalInfo, true);
         $hasToBeUniqueInPid = in_array('uniqueInPid', $evalInfo, true);
 
         $hasConflict = false;
 
         $recordData = $values;
+        if (!isset($recordData['uid'])) {
+            $recordData['uid'] = $recordId;
+        }
         $recordData['pid'] = $pid;
         if (!empty($GLOBALS['TCA'][$tableName]['ctrl']['languageField'])) {
             $recordData[$GLOBALS['TCA'][$tableName]['ctrl']['languageField']] = $languageId;
@@ -107,6 +120,10 @@ class FormSlugAjaxController extends AbstractFormEngineAjaxController
 
         $state = RecordStateFactory::forName($tableName)
             ->fromArray($recordData, $pid, $recordId);
+        if ($hasToBeUniqueInDb && !$slug->isUniqueInTable($proposal, $state)) {
+            $hasConflict = true;
+            $proposal = $slug->buildSlugForUniqueInTable($proposal, $state);
+        }
         if ($hasToBeUniqueInSite && !$slug->isUniqueInSite($proposal, $state)) {
             $hasConflict = true;
             $proposal = $slug->buildSlugForUniqueInSite($proposal, $state);

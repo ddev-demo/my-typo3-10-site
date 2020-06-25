@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Domain\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Domain\Configuration;
 
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
@@ -214,11 +216,12 @@ class ConfigurationService implements SingletonInterface
      * * formElementsDefinition.<formElementType>.formEditor.predefinedDefaults.<propertyPath> = "default value"
      *
      * @param ValidationDto $dto
+     * @param bool $translated
      * @return mixed
      * @throws PropertyException
      * @internal
      */
-    public function getFormElementPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto)
+    public function getFormElementPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto, bool $translated = true)
     {
         if (!$this->isFormElementPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)) {
             throw new PropertyException(
@@ -234,7 +237,9 @@ class ConfigurationService implements SingletonInterface
         $formDefinitionValidationConfiguration = $this->buildFormDefinitionValidationConfigurationFromFormEditorSetup(
             $dto->getPrototypeName()
         );
-        return $formDefinitionValidationConfiguration['formElements'][$dto->getFormElementType()]['predefinedDefaults'][$dto->getPropertyPath()];
+
+        $property = $translated ? 'predefinedDefaults' : 'untranslatedPredefinedDefaults';
+        return $formDefinitionValidationConfiguration['formElements'][$dto->getFormElementType()][$property][$dto->getPropertyPath()];
     }
 
     /**
@@ -265,11 +270,12 @@ class ConfigurationService implements SingletonInterface
      * * <validatorsDefinition|finishersDefinition>.<index>.formEditor.predefinedDefaults.<propertyPath> = "default value"
      *
      * @param ValidationDto $dto
+     * @param bool $translated
      * @return mixed
      * @throws PropertyException
      * @internal
      */
-    public function getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto)
+    public function getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup(ValidationDto $dto, bool $translated = true)
     {
         if (!$this->isPropertyCollectionPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)) {
             throw new PropertyException(
@@ -286,7 +292,9 @@ class ConfigurationService implements SingletonInterface
         $formDefinitionValidationConfiguration = $this->buildFormDefinitionValidationConfigurationFromFormEditorSetup(
             $dto->getPrototypeName()
         );
-        return $formDefinitionValidationConfiguration['collections'][$dto->getPropertyCollectionName()][$dto->getPropertyCollectionElementIdentifier()]['predefinedDefaults'][$dto->getPropertyPath()];
+
+        $property = $translated ? 'predefinedDefaults' : 'untranslatedPredefinedDefaults';
+        return $formDefinitionValidationConfiguration['collections'][$dto->getPropertyCollectionName()][$dto->getPropertyCollectionElementIdentifier()][$property][$dto->getPropertyPath()];
     }
 
     /**
@@ -347,6 +355,22 @@ class ConfigurationService implements SingletonInterface
             $prototypeConfiguration,
             'formElementsDefinition.' . $dto->getFormElementType(),
             '.'
+        );
+    }
+
+    /**
+     * @param string $key
+     * @param string $prototypeName
+     * @return array
+     */
+    public function getAllBackendTranslationsForTranslationKey(string $key, string $prototypeName): array
+    {
+        $prototypeConfiguration = $this->getPrototypeConfiguration($prototypeName);
+
+        return $this->getTranslationService()->translateToAllBackendLanguages(
+            $key,
+            [],
+            $prototypeConfiguration['formEditor']['translationFiles'] ?? []
         );
     }
 
@@ -538,7 +562,7 @@ class ConfigurationService implements SingletonInterface
 
             $formElementType = $validationDto->getFormElementType();
             if (!$this->isFormElementTypeDefinedInFormSetup($validationDto)) {
-                $message = 'Form element type "%s" does not exists in prototype configuration "%s"';
+                $message = 'Form element type "%s" does not exist in prototype configuration "%s"';
                 throw new PropertyException(
                     sprintf($message, $formElementType, $validationDto->getPrototypeName()),
                     1528633967
@@ -626,6 +650,7 @@ class ConfigurationService implements SingletonInterface
             if (!isset($formElement['predefinedDefaults'])) {
                 continue;
             }
+            $formElement['untranslatedPredefinedDefaults'] = $formElement['predefinedDefaults'];
             $formElement['predefinedDefaults'] = $this->getTranslationService()->translateValuesRecursive(
                 $formElement['predefinedDefaults'],
                 $prototypeConfiguration['formEditor']['translationFiles'] ?? []
@@ -644,9 +669,8 @@ class ConfigurationService implements SingletonInterface
         if (isset($this->firstLevelCache[$cacheKey])) {
             return $this->firstLevelCache[$cacheKey];
         }
-        return $this->getCacheFrontend()->has('form_' . $cacheKey)
-            ? $this->getCacheFrontend()->get('form_' . $cacheKey)
-            : null;
+        $cacheValue = $this->getCacheFrontend()->get('form_' . $cacheKey);
+        return $cacheValue === false ? null : $cacheValue;
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers;
+
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractTagBasedViewHelper;
@@ -43,7 +45,7 @@ class DistributionImageViewHelper extends AbstractTagBasedViewHelper
     }
 
     /**
-     * Renders the destribution preview image for the given extension
+     * Renders the distribution preview image for the given extension
      *
      * @return string rendered tag.
      */
@@ -72,7 +74,7 @@ class DistributionImageViewHelper extends AbstractTagBasedViewHelper
     }
 
     /**
-     * Find the distrubution image
+     * Find the distribution image
      *
      * @param string $extensionKey
      * @return string

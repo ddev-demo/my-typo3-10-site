@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,7 +12,11 @@ namespace TYPO3\CMS\Core\Resource;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Representation of a specific usage of a file with possibilities to override certain
@@ -86,8 +89,7 @@ class FileReference implements FileInterface
             throw new \InvalidArgumentException('Incorrect reference to original file given for FileReference.', 1300098528);
         }
         if (!$factory) {
-            /** @var ResourceFactory $factory */
-            $factory = ResourceFactory::getInstance();
+            $factory = GeneralUtility::makeInstance(ResourceFactory::class);
         }
         $this->originalFile = $factory->getFileObject($fileReferenceData['uid_local']);
         if (!is_object($this->originalFile)) {
@@ -372,7 +374,7 @@ class FileReference implements FileInterface
     }
 
     /****************************************
-     * STORAGE AND MANAGEMENT RELATED METHDOS
+     * STORAGE AND MANAGEMENT RELATED METHODS
      ****************************************/
     /**
      * Get the storage the original file is located in

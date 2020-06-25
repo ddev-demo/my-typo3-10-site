@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Html;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Html;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Html;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -249,7 +250,7 @@ class HtmlParser
      */
     public function get_tag_attributes($tag, $deHSC = false)
     {
-        list($components, $metaC) = $this->split_tag_attributes($tag);
+        [$components, $metaC] = $this->split_tag_attributes($tag);
         // Attribute name is stored here
         $name = '';
         $valuemode = false;
@@ -280,6 +281,7 @@ class HtmlParser
             }
             return [$attributes, $attributesMeta];
         }
+        return [null, null];
     }
 
     /**
@@ -421,7 +423,7 @@ class HtmlParser
                 $tok = substr($tok, $eocPos + 10);
                 $skipTag = true;
             }
-            $firstChar = $tok[0];
+            $firstChar = $tok[0] ?? null;
             // It is a tag... (first char is a-z0-9 or /) (fixed 19/01 2004). This also avoids triggering on <?xml..> and <!DOCTYPE..>
             if (!$skipTag && preg_match('/[[:alnum:]\\/]/', $firstChar) === 1) {
                 $tagEnd = strpos($tok, '>');
@@ -805,7 +807,7 @@ class HtmlParser
      * @param mixed $str Input string/array
      * @param bool $caseSensitiveComparison If this value is FALSE, the string is returned in uppercase
      * @param string $cacheKey Key string used for internal caching of the results. Could be an MD5 hash of the serialized version of the input $str if that is an array.
-     * @return string Output string, processed
+     * @return array|string Output string, processed
      * @internal
      */
     public function caseShift($str, $caseSensitiveComparison, $cacheKey = '')

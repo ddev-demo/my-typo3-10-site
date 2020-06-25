@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Container;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Container;
 
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\NodeFactory;
@@ -175,6 +176,7 @@ class InlineControlContainer extends AbstractContainer
         $this->inlineData['config'][$nameObject] = [
             'table' => $foreign_table,
         ];
+        $configJson = json_encode($config);
         $this->inlineData['config'][$nameObject . '-' . $foreign_table] = [
             'min' => $config['minitems'],
             'max' => $config['maxitems'],
@@ -184,8 +186,8 @@ class InlineControlContainer extends AbstractContainer
                 'uid' => $top['uid']
             ],
             'context' => [
-                'config' => $config,
-                'hmac' => GeneralUtility::hmac(json_encode($config), 'InlineContext'),
+                'config' => $configJson,
+                'hmac' => GeneralUtility::hmac($configJson, 'InlineContext'),
             ],
         ];
         $this->inlineData['nested'][$nameObject] = $this->data['tabAndInlineStack'];
@@ -382,7 +384,7 @@ class InlineControlContainer extends AbstractContainer
      * The possible keys for the parameter $type are 'newRecord', 'localize' and 'synchronize'.
      *
      * @param string $type The link type, values are 'newRecord', 'localize' and 'synchronize'.
-     * @param string $objectPrefix The "path" to the child record to create (e.g. 'data-parentPageId-partenTable-parentUid-parentField-childTable]')
+     * @param string $objectPrefix The "path" to the child record to create (e.g. 'data-parentPageId-parentTable-parentUid-parentField-childTable]')
      * @param array $conf TCA configuration of the parent(!) field
      * @return string The HTML code of the new link, wrapped in a div
      */
@@ -495,6 +497,8 @@ class InlineControlContainer extends AbstractContainer
                 $elementBrowserEnabled = (bool)$inlineConfiguration['appearance']['elementBrowserEnabled'];
             }
         }
+        // Remove any white-spaces from the allowed extension lists
+        $allowed = implode(',', GeneralUtility::trimExplode(',', $allowed, true));
         $browserParams = '|||' . $allowed . '|' . $objectPrefix;
         $buttonStyle = '';
         if (isset($inlineConfiguration['inline']['inlineNewRelationButtonStyle'])) {
@@ -518,7 +522,7 @@ class InlineControlContainer extends AbstractContainer
         }
         if (($showUpload || $showByUrl) && $isDirectFileUploadEnabled) {
             $folder = $backendUser->getDefaultUploadFolder(
-                $this->data['parentPageRow']['uid'],
+                $this->data['tableName'] === 'pages' ? $this->data['vanillaUid'] : $this->data['parentPageRow']['uid'],
                 $this->data['tableName'],
                 $this->data['fieldName']
             );
@@ -623,7 +627,7 @@ class InlineControlContainer extends AbstractContainer
             }
             $item .= '
             <span class="input-group-btn">
-                <a href="#" class="btn btn-default" onclick="' . htmlspecialchars($onChange) . '" title="' . $createNewRelationText . '">
+                <a href="#" class="btn btn-default" title="' . $createNewRelationText . '">
                     ' . $this->iconFactory->getIcon('actions-add', Icon::SIZE_SMALL)->render() . $createNewRelationText . '
                 </a>
             </span>';

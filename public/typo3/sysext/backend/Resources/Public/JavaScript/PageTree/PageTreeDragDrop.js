@@ -29,7 +29,7 @@ define([
 
   /**
    * Creates a new drag instance and initializes the clickDistance setting to
-   * prevent clicks from beeing wrongly detected as drag attempts.
+   * prevent clicks from being wrongly detected as drag attempts.
    */
   var createD3 = function() {
     return d3.drag()
@@ -99,8 +99,8 @@ define([
 
         _this.dropZoneDelete = null;
 
-        if ((!tree.settings.allowRecursiveDelete && !node.hasChildren) ||
-          tree.settings.allowRecursiveDelete
+        if (node.allowDelete
+          && ((!tree.settings.allowRecursiveDelete && !node.hasChildren) || tree.settings.allowRecursiveDelete)
         ) {
           _this.dropZoneDelete = tree.nodesContainer
             .select('.node[data-state-id="' + node.stateIdentifier + '"]')

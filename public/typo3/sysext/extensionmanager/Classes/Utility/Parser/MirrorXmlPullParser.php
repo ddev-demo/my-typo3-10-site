@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,10 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
+
+use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
 
 /**
  * Parser for TYPO3's mirrors.xml file.
@@ -45,11 +48,11 @@ class MirrorXmlPullParser extends AbstractMirrorXmlParser
     public function parseXml($file)
     {
         $this->createParser();
-        if (!(is_object($this->objXml) && get_class($this->objXml) === 'XMLReader')) {
-            throw new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException('Unable to create XML parser.', 1342640820);
+        if (!(is_object($this->objXml) && get_class($this->objXml) === \XMLReader::class)) {
+            throw new ExtensionManagerException('Unable to create XML parser.', 1342640820);
         }
         if ($this->objXml->open($file, 'utf-8') === false) {
-            throw new \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException(sprintf('Unable to open file resource %s.', $file), 1342640893);
+            throw new ExtensionManagerException(sprintf('Unable to open file resource %s.', $file), 1342640893);
         }
         while ($this->objXml->read()) {
             if ($this->objXml->nodeType == \XMLReader::ELEMENT) {
@@ -86,15 +89,6 @@ class MirrorXmlPullParser extends AbstractMirrorXmlParser
             case 'country':
                 $this->country = $this->getElementValue($elementName);
                 break;
-            case 'name':
-                $this->sponsorname = $this->getElementValue($elementName);
-                break;
-            case 'link':
-                $this->sponsorlink = $this->getElementValue($elementName);
-                break;
-            case 'logo':
-                $this->sponsorlogo = $this->getElementValue($elementName);
-                break;
             default:
                 // Do nothing
         }
@@ -125,7 +119,7 @@ class MirrorXmlPullParser extends AbstractMirrorXmlParser
      * Method will read until it finds the end of the given element.
      * If element has no value, method returns NULL.
      *
-     * @param string &$elementName name of element to retrieve it's value from
+     * @param string $elementName name of element to retrieve it's value from
      * @return string an element's value if it has a value, otherwise NULL
      */
     protected function getElementValue(&$elementName)

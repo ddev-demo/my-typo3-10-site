@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,11 @@ namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Routing\UnableToLinkToPageException;
 use TYPO3\CMS\Core\Type\Bitmask\JsConfirmation;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -292,6 +295,9 @@ class RecordProvider extends AbstractProvider
         if ($itemName === 'view') {
             $attributes += $this->getViewAdditionalAttributes();
         }
+        if ($itemName === 'enable' || $itemName === 'disable') {
+            $attributes += $this->getEnableDisableAdditionalAttributes();
+        }
         if ($itemName === 'newWizard' && $this->table === 'tt_content') {
             $moduleName = BackendUtility::getPagesTSconfig($this->record['pid'])['mod.']['newContentElementWizard.']['override']
                 ?? 'new_content_element_wizard';
@@ -337,6 +343,18 @@ class RecordProvider extends AbstractProvider
             ];
         }
         return $attributes;
+    }
+
+    /**
+     * Additional attributes for the hide & unhide items
+     *
+     * @return array
+     */
+    protected function getEnableDisableAdditionalAttributes(): array
+    {
+        return [
+            'data-disable-field' => $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'] ?? ''
+        ];
     }
 
     /**
@@ -434,21 +452,19 @@ class RecordProvider extends AbstractProvider
                 $additionalParams = '&L=' . $language;
             }
         }
-        $javascriptLink = BackendUtility::viewOnClick(
-            $this->getPreviewPid(),
-            '',
-            null,
-            $anchorSection,
-            '',
-            $additionalParams
-        );
-        $extractedLink = '';
-        if (preg_match('/window\\.open\\(\'([^\']+)\'/i', $javascriptLink, $match)) {
-            // Clean JSON-serialized ampersands ('&')
-            // @see GeneralUtility::quoteJSvalue()
-            $extractedLink = json_decode('"' . trim($match[1], '"') . '"');
+
+        try {
+            return BackendUtility::getPreviewUrl(
+                $this->getPreviewPid(),
+                '',
+                null,
+                $anchorSection,
+                '',
+                $additionalParams
+            );
+        } catch (UnableToLinkToPageException $e) {
+            return '';
         }
-        return $extractedLink;
     }
 
     /**
@@ -501,7 +517,8 @@ class RecordProvider extends AbstractProvider
 
         $access = !$this->isRecordLocked()
             && $this->backendUser->check('tables_modify', $this->table)
-            && $this->hasPagePermission(Permission::CONTENT_EDIT);
+            && $this->hasPagePermission(Permission::CONTENT_EDIT)
+            && $this->backendUser->recordEditAccessInternals($this->table, $this->record);
         return $access;
     }
 
@@ -575,6 +592,7 @@ class RecordProvider extends AbstractProvider
     protected function canBeCopied(): bool
     {
         return !$this->isRecordInClipboard('copy')
+            && $this->canBeEdited()
             && !$this->isRecordATranslation();
     }
 

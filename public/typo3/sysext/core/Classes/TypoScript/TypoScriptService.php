@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\TypoScript;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\TypoScript;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\TypoScript;
 
 /**
  * Utilities to manage and convert TypoScript
@@ -59,8 +61,8 @@ class TypoScriptService
      * However, if you want to call legacy TypoScript objects, you somehow need the "old" syntax (because this is what TYPO3 is used to).
      * With this method, you can convert the extbase TypoScript to classical TYPO3 TypoScript which is understood by the rest of TYPO3.
      *
-     * @param array $plainArray An TypoScript Array with Extbase Syntax (without dot but with _typoScriptNodeValue)
-     * @return array array with TypoScript as usual (with dot)
+     * @param array $plainArray A TypoScript Array with Extbase Syntax (without dot but with _typoScriptNodeValue)
+     * @return array Array with TypoScript as usual (with dot)
      */
     public function convertPlainArrayToTypoScriptArray(array $plainArray): array
     {

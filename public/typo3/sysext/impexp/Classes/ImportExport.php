@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Impexp;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Impexp;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Core\Environment;
@@ -22,6 +23,7 @@ use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\Exception\InsufficientFolderAccessPermissionsException;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Resource\Security\FileNameValidator;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\DebugUtility;
 use TYPO3\CMS\Core\Utility\DiffUtility;
@@ -635,7 +637,7 @@ abstract class ImportExport
                 $lines[] = $pInfo;
                 // Add relations:
                 if ($info['subst']['type'] === 'db') {
-                    list($tempTable, $tempUid) = explode(':', $info['subst']['recordRef']);
+                    [$tempTable, $tempUid] = explode(':', $info['subst']['recordRef']);
                     $this->addRelations([['table' => $tempTable, 'id' => $tempUid, 'tokenID' => $info['subst']['tokenID']]], $lines, $preCode_B, [], '');
                 }
                 // Add files:
@@ -764,7 +766,7 @@ abstract class ImportExport
                 $fileProcObj = $this->getFileProcObj();
                 if ($fileProcObj->actionPerms['addFile']) {
                     $testFI = GeneralUtility::split_fileref(Environment::getPublicPath() . '/' . $fI['relFileName']);
-                    if (!$fileProcObj->checkIfAllowed($testFI['fileext'], $testFI['path'], $testFI['file'])) {
+                    if (!GeneralUtility::makeInstance(FileNameValidator::class)->isValid($testFI['file'])) {
                         $pInfo['msg'] .= 'File extension was not allowed!';
                     }
                 } else {
@@ -921,7 +923,7 @@ abstract class ImportExport
     {
         // Check the absolute path for public web path, if the user has access - no problem
         try {
-            ResourceFactory::getInstance()->getFolderObjectFromCombinedIdentifier($dirPrefix);
+            GeneralUtility::makeInstance(ResourceFactory::class)->getFolderObjectFromCombinedIdentifier($dirPrefix);
             return $dirPrefix;
         } catch (InsufficientFolderAccessPermissionsException $e) {
             // Check all storages available for the user as alternative
@@ -950,7 +952,7 @@ abstract class ImportExport
     {
         $temporaryPath = Environment::getVarPath() . '/transient/';
         do {
-            $temporaryFolderName = $temporaryPath . 'export_temp_files_' . mt_rand(1, PHP_INT_MAX);
+            $temporaryFolderName = $temporaryPath . 'export_temp_files_' . random_int(1, PHP_INT_MAX);
         } while (is_dir($temporaryFolderName));
         GeneralUtility::mkdir($temporaryFolderName);
         return $temporaryFolderName;
@@ -1065,7 +1067,7 @@ abstract class ImportExport
      */
     public function doesRecordExist($table, $uid, $fields = '')
     {
-        return BackendUtility::getRecord($table, $uid, $fields ? $fields : 'uid,pid');
+        return BackendUtility::getRecord($table, $uid, $fields ?: 'uid,pid');
     }
 
     /**
@@ -1113,7 +1115,7 @@ abstract class ImportExport
      * Will return HTML code to show any differences between them!
      *
      * @param array $databaseRecord Database record, all fields (new values)
-     * @param array $importRecord Import memorys record for the same table/uid, all fields (old values)
+     * @param array|null $importRecord Import memory records for the same table/uid, all fields (old values)
      * @param string $table The table name of the record
      * @param bool $inverseDiff Inverse the diff view (switch red/green, needed for pre-update difference view)
      * @return string HTML

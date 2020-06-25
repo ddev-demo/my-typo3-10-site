@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Type\File;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Type\File;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Type\File;
 
 use TYPO3\CMS\Core\Type\TypeInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -64,9 +65,9 @@ class FileInfo extends \SplFileInfo implements TypeInterface
     }
 
     /**
-     * Returns the file extensions appropiate for a the MIME type detected in the file. For types that commonly have
+     * Returns the file extensions appropriate for a the MIME type detected in the file. For types that commonly have
      * multiple file extensions, such as JPEG images, then the return value is multiple extensions, for instance that
-     * could be ['jpeg', 'jpg', 'jpe', 'jfif']. For unknown types not available in the magic.mime database
+     * could be ['jpeg', 'jpg', 'jpe', 'jiff']. For unknown types not available in the magic.mime database
      * (/etc/magic.mime, /etc/mime.types, ...), then return value is an empty array.
      *
      * TYPO3 specific settings in $GLOBALS['TYPO3_CONF_VARS']['SYS']['FileInfo']['fileExtensionToMimeType'] take

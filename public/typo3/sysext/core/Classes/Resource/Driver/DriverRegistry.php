@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,14 @@ namespace TYPO3\CMS\Core\Resource\Driver;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Driver;
+
+use TYPO3\CMS\Core\SingletonInterface;
+
 /**
  * Registry for driver classes.
  */
-class DriverRegistry implements \TYPO3\CMS\Core\SingletonInterface
+class DriverRegistry implements SingletonInterface
 {
     /**
      * @var array

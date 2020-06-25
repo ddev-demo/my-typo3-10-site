@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\TypoScript;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\TypoScript;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\TypoScript;
+
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -25,6 +27,7 @@ use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\TypoScript\Parser\ConstantConfigurationParser;
+use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -278,10 +281,10 @@ class ExtendedTemplateService extends TemplateService
      */
     public function generateConfig_constants()
     {
-        // These vars are also set lateron...
+        // These vars are also set later on...
         $this->setup['sitetitle'] = $this->sitetitle;
         // Parse constants
-        $constants = GeneralUtility::makeInstance(Parser\TypoScriptParser::class);
+        $constants = GeneralUtility::makeInstance(TypoScriptParser::class);
         // Register comments!
         $constants->regComments = true;
         /** @var ConditionMatcher $matchObj */
@@ -346,7 +349,7 @@ class ExtendedTemplateService extends TemplateService
         $keyArr_num = [];
         $keyArr_alpha = [];
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         foreach ($arr as $key => $value) {
             // Don't do anything with comments / linenumber registrations...
             if (substr($key, -2) !== '..') {
@@ -404,13 +407,13 @@ class ExtendedTemplateService extends TemplateService
                             $ln = '';
                         }
                         if ($this->tsbrowser_searchKeys[$depth] & 4) {
+                            // The key has matched the search string
                             $label = '<strong class="text-danger">' . $label . '</strong>';
                         }
-                        // The key has matched the search string
-                        $label = '<a href="' . htmlspecialchars($aHref) . '" title="' . htmlspecialchars($ln) . '">' . $label . '</a>';
+                        $label = '<a href="' . htmlspecialchars($aHref) . '" title="' . htmlspecialchars($depth_in . $key . ' ' . $ln) . '">' . $label . '</a>';
                     }
                 }
-                $HTML .= '<span class="list-tree-label">[' . $label . ']</span>';
+                $HTML .= '<span class="list-tree-label" title="' . htmlspecialchars($depth_in . $key) . '">[' . $label . ']</span>';
                 if (isset($arr[$key])) {
                     $theValue = $arr[$key];
                     // The value has matched the search string
@@ -456,7 +459,7 @@ class ExtendedTemplateService extends TemplateService
      * lineNumbers are in sync with the calculated lineNumbers '.ln..' in TypoScriptParser
      *
      * @param array $lnArr Array with linenumbers (might have some extra symbols, for example for unsetting) to be processed
-     * @return array The same array where each entry has been prepended by the template title if available
+     * @return string Imploded array of line number and template title
      */
     public function lineNumberToScript(array $lnArr)
     {
@@ -592,7 +595,7 @@ class ExtendedTemplateService extends TemplateService
         $a = 0;
         $c = count($keyArr);
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         /** @var IconFactory $iconFactory */
         $iconFactory = GeneralUtility::makeInstance(IconFactory::class);
         foreach ($keyArr as $key => $value) {
@@ -649,7 +652,7 @@ class ExtendedTemplateService extends TemplateService
      * and turns it into a hierarchical array to show dependencies (used by TemplateAnalyzer)
      *
      * @param array $depthDataArr (empty array on external call)
-     * @param int &$pointer Element number (1! to count()) of $this->hierarchyInfo that should be processed.
+     * @param int $pointer Element number (1! to count()) of $this->hierarchyInfo that should be processed.
      * @return array Processed hierachyInfo.
      */
     public function ext_process_hierarchyInfo(array $depthDataArr, &$pointer)
@@ -670,7 +673,7 @@ class ExtendedTemplateService extends TemplateService
     }
 
     /**
-     * Get formatted HTML output for TypoScript either with Syntaxhiglighting or in plain mode
+     * Get formatted HTML output for TypoScript either with Syntaxhighlighting or in plain mode
      *
      * @param array $config Array with simple strings of typoscript code.
      * @param bool $lineNumbers Prepend linNumbers to each line.
@@ -693,7 +696,7 @@ class ExtendedTemplateService extends TemplateService
             $all .= '[GLOBAL]' . LF . $str;
         }
         if ($syntaxHL) {
-            $tsparser = GeneralUtility::makeInstance(Parser\TypoScriptParser::class);
+            $tsparser = GeneralUtility::makeInstance(TypoScriptParser::class);
             $tsparser->lineNumberOffset = $this->ext_lineNumberOffset + 1;
             $tsparser->parentObject = $this;
             return $tsparser->doSyntaxHighlight($all, $lineNumbers ? [$this->ext_lineNumberOffset + 1] : '', $syntaxHLBlockmode);
@@ -727,7 +730,7 @@ class ExtendedTemplateService extends TemplateService
 
     /**
      * @param int $lineNumber Line Number
-     * @param array $str
+     * @param string $str
      * @return string
      */
     public function ext_lnBreakPointWrap($lineNumber, $str)
@@ -769,7 +772,7 @@ class ExtendedTemplateService extends TemplateService
                 }
             }
         }
-        $output = implode($cArr, '<br />') . '<br />';
+        $output = implode('<br />', $cArr) . '<br />';
         return $output;
     }
 
@@ -987,7 +990,7 @@ class ExtendedTemplateService extends TemplateService
                     $p_field = '';
                     $raname = substr(md5($params['name']), 0, 10);
                     $aname = '\'' . $raname . '\'';
-                    list($fN, $fV, $params, $idName) = $this->ext_fNandV($params);
+                    [$fN, $fV, $params, $idName] = $this->ext_fNandV($params);
                     $idName = htmlspecialchars($idName);
                     $hint = '';
                     switch ($typeDat['type']) {
@@ -1068,16 +1071,16 @@ class ExtendedTemplateService extends TemplateService
                             $p_field =
                                 '<input type="hidden" name="' . $fN . '" value="0" />'
                                 . '<label class="btn btn-default btn-checkbox">'
-                                . '<input id="' . $idName . '" type="checkbox" name="' . $fN . '" value="' . ($typeDat['paramstr'] ? $typeDat['paramstr'] : 1) . '" ' . $sel . ' onClick="uFormUrl(' . $aname . ')" />'
+                                . '<input id="' . $idName . '" type="checkbox" name="' . $fN . '" value="' . ($typeDat['paramstr'] ?: 1) . '" ' . $sel . ' onClick="uFormUrl(' . $aname . ')" />'
                                 . '<span class="t3-icon fa"></span>'
                                 . '</label>';
                             break;
                         case 'comment':
-                            $sel = $fV ? 'checked' : '';
+                            $sel = $fV ? '' : 'checked';
                             $p_field =
-                                '<input type="hidden" name="' . $fN . '" value="#" />'
+                                '<input type="hidden" name="' . $fN . '" value="" />'
                                 . '<label class="btn btn-default btn-checkbox">'
-                                . '<input id="' . $idName . '" type="checkbox" name="' . $fN . '" value="" ' . $sel . ' onClick="uFormUrl(' . $aname . ')" />'
+                                . '<input id="' . $idName . '" type="checkbox" name="' . $fN . '" value="1" ' . $sel . ' onClick="uFormUrl(' . $aname . ')" />'
                                 . '<span class="t3-icon fa"></span>'
                                 . '</label>';
                             break;
@@ -1254,7 +1257,7 @@ class ExtendedTemplateService extends TemplateService
             if (count($parts) === 2) {
                 $parts[1] = $theValue;
             }
-            $this->raw[$lineNum] = implode($parts, '=');
+            $this->raw[$lineNum] = implode('=', $parts);
         } else {
             $this->raw[] = $key . ' =' . $theValue;
         }
@@ -1327,7 +1330,7 @@ class ExtendedTemplateService extends TemplateService
                     // If checkbox is set, update the value
                     if ($this->ext_dontCheckIssetValues || isset($check[$key])) {
                         // Exploding with linebreak, just to make sure that no multiline input is given!
-                        list($var) = explode(LF, $var);
+                        [$var] = explode(LF, $var);
                         $typeDat = $this->ext_getTypeData($theConstants[$key]['type']);
                         switch ($typeDat['type']) {
                             case 'int':
@@ -1362,9 +1365,9 @@ class ExtendedTemplateService extends TemplateService
                                 break;
                             case 'comment':
                                 if ($var) {
-                                    $var = '#';
-                                } else {
                                     $var = '';
+                                } else {
+                                    $var = '#';
                                 }
                                 break;
                             case 'wrap':
@@ -1391,7 +1394,7 @@ class ExtendedTemplateService extends TemplateService
                                 break;
                             case 'boolean':
                                 if ($var) {
-                                    $var = $typeDat['paramstr'] ? $typeDat['paramstr'] : 1;
+                                    $var = $typeDat['paramstr'] ?: 1;
                                 }
                                 break;
                         }

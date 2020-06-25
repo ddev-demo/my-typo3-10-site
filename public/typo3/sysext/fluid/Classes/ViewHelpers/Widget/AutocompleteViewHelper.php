@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,7 +12,12 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
+
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
+use TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper;
+use TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\AutocompleteController;
 
 /**
  * Simple autocomplete widget.
@@ -34,16 +38,19 @@ use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
  * Render lib object::
  *
  *    <input type="text" id="name" />
- *    <f:widget.autocomplete for="name" objects="{posts}" searchProperty="author">
+ *    <f:widget.autocomplete for="name" objects="{posts}" searchProperty="author" storeSession="false">
  *
  * Output::
  *
  *    <input type="text" id="name" />
  *
  * The input field and the required JavaScript for the Ajax communication.
+ * The storeSession attribute can be used in any widget
+ * and will prevent cookie creation / session storage for the widget.
  * See Resources/Private/Templates/ViewHelpers/Widget/Autocomplete/Index.html
+ * @deprecated since TYPO3 v10.4, will be removed in TYPO3 v11.0.
  */
-class AutocompleteViewHelper extends \TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper
+class AutocompleteViewHelper extends AbstractWidgetViewHelper
 {
     /**
      * @var bool
@@ -54,6 +61,11 @@ class AutocompleteViewHelper extends \TYPO3\CMS\Fluid\Core\Widget\AbstractWidget
      * @var \TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\AutocompleteController
      */
     protected $controller;
+
+    public function __construct()
+    {
+        trigger_error(__CLASS__ . ' will be removed in TYPO3 v11.', E_USER_DEPRECATED);
+    }
 
     /**
      * Initialize arguments
@@ -69,7 +81,7 @@ class AutocompleteViewHelper extends \TYPO3\CMS\Fluid\Core\Widget\AbstractWidget
     /**
      * @param \TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\AutocompleteController $controller
      */
-    public function injectAutocompleteController(\TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\AutocompleteController $controller)
+    public function injectAutocompleteController(AutocompleteController $controller)
     {
         $this->controller = $controller;
     }

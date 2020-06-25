@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Driver;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,21 @@ namespace TYPO3\CMS\Core\Resource\Driver;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Driver;
+
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\SelfEmittableLazyOpenStream;
 use TYPO3\CMS\Core\Resource\Exception;
+use TYPO3\CMS\Core\Resource\Exception\ExistingTargetFileNameException;
+use TYPO3\CMS\Core\Resource\Exception\FileOperationErrorException;
+use TYPO3\CMS\Core\Resource\Exception\FolderDoesNotExistException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidConfigurationException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidFileNameException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidPathException;
+use TYPO3\CMS\Core\Resource\Exception\ResourcePermissionsUnavailableException;
 use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Type\File\FileInfo;
@@ -80,7 +88,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     }
 
     /**
-     * Merges the capabilites merged by the user at the storage
+     * Merges the capabilities merged by the user at the storage
      * configuration into the actual capabilities of the driver
      * and returns the result.
      *
@@ -149,7 +157,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
     protected function calculateBasePath(array $configuration)
     {
         if (!array_key_exists('basePath', $configuration) || empty($configuration['basePath'])) {
-            throw new Exception\InvalidConfigurationException(
+            throw new InvalidConfigurationException(
                 'Configuration must contain base path.',
                 1346510477
             );
@@ -164,7 +172,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $absoluteBasePath = $this->canonicalizeAndCheckFilePath($absoluteBasePath);
         $absoluteBasePath = rtrim($absoluteBasePath, '/') . '/';
         if (!is_dir($absoluteBasePath)) {
-            throw new Exception\InvalidConfigurationException(
+            throw new InvalidConfigurationException(
                 'Base path "' . $absoluteBasePath . '" does not exist or is no directory.',
                 1299233097
             );
@@ -280,7 +288,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $folderIdentifier = $this->canonicalizeAndCheckFolderIdentifier($folderIdentifier);
 
         if (!$this->folderExists($folderIdentifier)) {
-            throw new Exception\FolderDoesNotExistException(
+            throw new FolderDoesNotExistException(
                 'Folder "' . $folderIdentifier . '" does not exist.',
                 1314516810
             );
@@ -321,7 +329,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         // Strip trailing dots and return
         $cleanFileName = rtrim($cleanFileName, '.');
         if ($cleanFileName === '') {
-            throw new Exception\InvalidFileNameException(
+            throw new InvalidFileNameException(
                 'File name ' . $fileName . ' is invalid.',
                 1320288991
             );
@@ -394,7 +402,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
                     // item here
                     --$c;
                 }
-            } catch (Exception\InvalidPathException $e) {
+            } catch (InvalidPathException $e) {
             }
         }
         return $items;
@@ -552,6 +560,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
                 || ($isFile && !$includeFiles) // skip files if they are excluded
                 || ($isDirectory && !$includeDirs) // skip directories if they are excluded
                 || $entry->getFilename() === '' // skip empty entries
+                || !$entry->isReadable() // skip unreadable entries
             ) {
                 $iterator->next();
                 continue;
@@ -609,10 +618,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
                     $sortingKey = pathinfo($entryArray['name'], PATHINFO_EXTENSION);
                     break;
                 case 'tstamp':
-                    $sortingKey = '0';
-                    if ($entryArray['type'] === 'file') {
-                        $sortingKey = $this->getSpecificFileInformation($fullPath, $dir, 'mtime');
-                    }
+                    $sortingKey = $this->getSpecificFileInformation($fullPath, $dir, 'mtime');
                     // Add a character for a natural order sorting
                     $sortingKey .= 't';
                     break;
@@ -1010,7 +1016,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
                 );
             }
             if (!file_exists($this->getAbsolutePath($newIdentifier))) {
-                throw new Exception\FileOperationErrorException(
+                throw new FileOperationErrorException(
                     sprintf('File "%1$s" was not found (should have been copied/moved from "%2$s").', $newIdentifier, $oldIdentifier),
                     1330119453
                 );
@@ -1087,7 +1093,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
                 if ($result === false) {
                     // rollback
                     GeneralUtility::rmdir($targetFolderIdentifier, true);
-                    throw new Exception\FileOperationErrorException(
+                    throw new FileOperationErrorException(
                         'Copying resource "' . $copySourcePath . '" to "' . $copyTargetPath . '" failed.',
                         1330119452
                     );
@@ -1116,7 +1122,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $newIdentifier = $this->canonicalizeAndCheckFileIdentifier($newIdentifier);
         // The target should not exist already
         if ($this->fileExists($newIdentifier)) {
-            throw new Exception\ExistingTargetFileNameException(
+            throw new ExistingTargetFileNameException(
                 'The target file "' . $newIdentifier . '" already exists.',
                 1320291063
             );
@@ -1211,7 +1217,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
             $result = GeneralUtility::rmdir($folderPath, $deleteRecursively);
         }
         if ($result === false) {
-            throw new Exception\FileOperationErrorException(
+            throw new FileOperationErrorException(
                 'Deleting folder "' . $folderIdentifier . '" failed.',
                 1330119451
             );
@@ -1269,7 +1275,7 @@ class LocalDriver extends AbstractHierarchicalFilesystemDriver implements Stream
         $path = $this->getAbsolutePath($identifier);
         $permissionBits = fileperms($path);
         if ($permissionBits === false) {
-            throw new Exception\ResourcePermissionsUnavailableException('Error while fetching permissions for ' . $path, 1319455097);
+            throw new ResourcePermissionsUnavailableException('Error while fetching permissions for ' . $path, 1319455097);
         }
         return [
             'r' => (bool)is_readable($path),

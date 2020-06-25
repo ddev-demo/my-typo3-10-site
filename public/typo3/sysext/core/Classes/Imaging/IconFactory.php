@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,10 @@ namespace TYPO3\CMS\Core\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Imaging;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Imaging\Event\ModifyIconForResourcePropertiesEvent;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Resource\InaccessibleFolder;
@@ -21,7 +24,6 @@ use TYPO3\CMS\Core\Resource\ResourceInterface;
 use TYPO3\CMS\Core\Type\Icon\IconState;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * The main factory class, which acts as the entrypoint for generating an Icon object which
@@ -58,11 +60,18 @@ class IconFactory
     protected static $iconCache = [];
 
     /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    /**
+     * @param EventDispatcherInterface $eventDispatcher
      * @param IconRegistry $iconRegistry
      */
-    public function __construct(IconRegistry $iconRegistry = null)
+    public function __construct(EventDispatcherInterface $eventDispatcher, IconRegistry $iconRegistry)
     {
-        $this->iconRegistry = $iconRegistry ? $iconRegistry : GeneralUtility::makeInstance(IconRegistry::class);
+        $this->eventDispatcher = $eventDispatcher;
+        $this->iconRegistry = $iconRegistry;
         $this->recordStatusMapping = $GLOBALS['TYPO3_CONF_VARS']['SYS']['IconFactory']['recordStatusMapping'];
         $this->overlayPriorities = $GLOBALS['TYPO3_CONF_VARS']['SYS']['IconFactory']['overlayPriorities'];
     }
@@ -157,20 +166,32 @@ class IconFactory
             // and to give root-pages an own icon
             if ($table === 'pages') {
                 if ((int)$row['nav_hide'] > 0) {
-                    $recordType[2] = $recordType[1] . '-hideinmenu';
+                    $recordType[2] = $this->getRecordTypeForPageType(
+                        $recordType[1],
+                        'hideinmenu',
+                        $table
+                    );
                 }
                 if ((int)$row['is_siteroot'] > 0) {
-                    $recordType[3] = $recordType[1] . '-root';
+                    $recordType[3] = $this->getRecordTypeForPageType(
+                        $recordType[1],
+                        'root',
+                        $table
+                    );
                 }
                 if (!empty($row['module'])) {
                     $recordType[4] = 'contains-' . $row['module'];
                 }
                 if ((int)$row['content_from_pid'] > 0) {
                     if ($row['is_siteroot']) {
-                        $recordType[4] = 'page-contentFromPid-root';
+                        $recordType[4] = $this->getRecordTypeForPageType(
+                            $recordType[1],
+                            'contentFromPid-root',
+                            $table
+                        );
                     } else {
-                        $recordType[4] = (int)$row['nav_hide'] === 0
-                            ? 'page-contentFromPid' : 'page-contentFromPid-hideinmenu';
+                        $suffix = (int)$row['nav_hide'] === 0 ? 'contentFromPid' : 'contentFromPid-hideinmenu';
+                        $recordType[4] = $this->getRecordTypeForPageType($recordType[1], $suffix, $table);
                     }
                 }
             }
@@ -223,6 +244,25 @@ class IconFactory
         }
 
         return $this->iconRegistry->getDefaultIconIdentifier();
+    }
+
+    /**
+     * Returns recordType for icon based on a typeName and a suffix.
+     * Fallback to page as typeName if resulting type is not configured.
+     * @param string $typeName
+     * @param string $suffix
+     * @param string $table
+     * @return string
+     */
+    protected function getRecordTypeForPageType(string $typeName, string $suffix, string $table): string
+    {
+        $recordType = $typeName . '-' . $suffix;
+
+        // Check if typeicon class exists. If not fallback to page as typeName
+        if (!isset($GLOBALS['TCA'][$table]['ctrl']['typeicon_classes'][$recordType])) {
+            $recordType = 'page-' . $suffix;
+        }
+        return $recordType;
     }
 
     /**
@@ -398,7 +438,7 @@ class IconFactory
         } elseif ($resource instanceof File) {
             $mimeTypeIcon = $this->iconRegistry->getIconIdentifierForMimeType($resource->getMimeType());
 
-            // Check if we find a exact matching mime type
+            // Check if we find an exact matching mime type
             if ($mimeTypeIcon !== null) {
                 $iconIdentifier = $mimeTypeIcon;
             } else {
@@ -423,11 +463,16 @@ class IconFactory
             }
         }
 
-        unset($options['mount-root']);
-        unset($options['folder-open']);
-        list($iconIdentifier, $overlayIdentifier) =
-            $this->emitBuildIconForResourceSignal($resource, $size, $options, $iconIdentifier, $overlayIdentifier);
-        return $this->getIcon($iconIdentifier, $size, $overlayIdentifier);
+        $event = $this->eventDispatcher->dispatch(
+            new ModifyIconForResourcePropertiesEvent(
+                $resource,
+                $size,
+                $options,
+                $iconIdentifier,
+                $overlayIdentifier
+            )
+        );
+        return $this->getIcon($event->getIconIdentifier(), $size, $event->getOverlayIdentifier());
     }
 
     /**
@@ -453,45 +498,6 @@ class IconFactory
         }
 
         return $icon;
-    }
-
-    /**
-     * Emits a signal right after the identifiers are built.
-     *
-     * @param ResourceInterface $resource
-     * @param string $size
-     * @param array $options
-     * @param string $iconIdentifier
-     * @param string $overlayIdentifier
-     * @return mixed
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
-    protected function emitBuildIconForResourceSignal(
-        ResourceInterface $resource,
-        $size,
-        array $options,
-        $iconIdentifier,
-        $overlayIdentifier
-    ) {
-        $result = $this->getSignalSlotDispatcher()->dispatch(
-            self::class,
-            'buildIconForResourceSignal',
-            [$resource, $size, $options, $iconIdentifier, $overlayIdentifier]
-        );
-        $iconIdentifier = $result[3];
-        $overlayIdentifier = $result[4];
-        return [$iconIdentifier, $overlayIdentifier];
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        return GeneralUtility::makeInstance(Dispatcher::class);
     }
 
     /**

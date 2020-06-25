@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Controller\ContentElement;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,19 +15,30 @@ namespace TYPO3\CMS\Backend\Controller\ContentElement;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\ContentElement;
+
 use Doctrine\DBAL\Connection;
+use Exception;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Backend\Avatar\Avatar;
+use TYPO3\CMS\Backend\Form\FormDataCompiler;
+use TYPO3\CMS\Backend\Form\FormDataGroup\TcaDatabaseRecord;
+use TYPO3\CMS\Backend\Routing\Exception\RouteNotFoundException;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Resource\AbstractFile;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Folder;
+use TYPO3\CMS\Core\Resource\Index\MetaDataRepository;
+use TYPO3\CMS\Core\Resource\Rendering\RendererRegistry;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -93,7 +104,7 @@ class ElementInformationController
     protected $row;
 
     /**
-     * @var \TYPO3\CMS\Core\Resource\File
+     * @var \TYPO3\CMS\Core\Resource\File|null
      */
     protected $fileObject;
 
@@ -157,7 +168,7 @@ class ElementInformationController
     /**
      * Init database records (table)
      */
-    protected function initDatabaseRecord()
+    protected function initDatabaseRecord(): void
     {
         $this->type = 'db';
         $this->uid = (int)$this->uid;
@@ -175,6 +186,8 @@ class ElementInformationController
                     if (!empty($this->row['t3ver_oid'])) {
                         $t3OrigRow = BackendUtility::getRecord($this->table, (int)$this->row['t3ver_oid']);
                         $this->pageInfo = BackendUtility::readPageAccess((int)$t3OrigRow['pid'], $this->permsClause);
+                    } else {
+                        $this->pageInfo = BackendUtility::readPageAccess($this->row['pid'], $this->permsClause);
                     }
                     $this->access = is_array($this->pageInfo);
                 }
@@ -185,9 +198,9 @@ class ElementInformationController
     /**
      * Init file/folder parameters
      */
-    protected function initFileOrFolderRecord()
+    protected function initFileOrFolderRecord(): void
     {
-        $fileOrFolderObject = ResourceFactory::getInstance()->retrieveFileOrFolderObject($this->uid);
+        $fileOrFolderObject = GeneralUtility::makeInstance(ResourceFactory::class)->retrieveFileOrFolderObject($this->uid);
 
         if ($fileOrFolderObject instanceof Folder) {
             $this->folderObject = $fileOrFolderObject;
@@ -201,7 +214,7 @@ class ElementInformationController
 
             try {
                 $this->row = BackendUtility::getRecordWSOL($this->table, $fileOrFolderObject->getUid());
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $this->row = [];
             }
         }
@@ -264,7 +277,7 @@ class ElementInformationController
     protected function getPageTitle(): array
     {
         $pageTitle = [
-            'title' => BackendUtility::getRecordTitle($this->table, $this->row, false)
+            'title' => BackendUtility::getRecordTitle($this->table, $this->row)
         ];
         if ($this->type === 'folder') {
             $pageTitle['table'] = $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:folder');
@@ -297,30 +310,28 @@ class ElementInformationController
         if ($this->fileObject->isMissing()) {
             $preview['missingFile'] = $this->fileObject->getName();
         } else {
-            /** @var \TYPO3\CMS\Core\Resource\Rendering\RendererRegistry $rendererRegistry */
-            $rendererRegistry = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Resource\Rendering\RendererRegistry::class);
+            $rendererRegistry = GeneralUtility::makeInstance(RendererRegistry::class);
             $fileRenderer = $rendererRegistry->getRenderer($this->fileObject);
-            $fileExtension = $this->fileObject->getExtension();
             $preview['url'] = $this->fileObject->getPublicUrl(true);
 
             $width = '590m';
-            $heigth = '400m';
+            $height = '400m';
 
             // Check if there is a FileRenderer
             if ($fileRenderer !== null) {
                 $preview['fileRenderer'] = $fileRenderer->render(
                     $this->fileObject,
                     $width,
-                    $heigth,
+                    $height,
                     [],
                     true
                 );
 
             // else check if we can create an Image preview
-            } elseif (GeneralUtility::inList($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'], $fileExtension)) {
+            } elseif ($this->fileObject->isImage()) {
                 $preview['fileObject'] = $this->fileObject;
                 $preview['width'] = $width;
-                $preview['heigth'] = $heigth;
+                $preview['height'] = $height;
             }
         }
         return $preview;
@@ -333,9 +344,151 @@ class ElementInformationController
      */
     protected function getPropertiesForTable(): array
     {
-        $propertiesForTable = [];
         $lang = $this->getLanguageService();
+        $propertiesForTable = [];
+        $propertiesForTable['extraFields'] = $this->getExtraFields();
 
+        // Traverse the list of fields to display for the record:
+        $fieldList = $this->getFieldList($this->table, (int)$this->row['uid']);
+
+        foreach ($fieldList as $name) {
+            $name = trim($name);
+            $uid = $this->row['uid'];
+
+            if (!isset($GLOBALS['TCA'][$this->table]['columns'][$name])) {
+                continue;
+            }
+
+            // not a real field -> skip
+            if ($this->type === 'file' && $name === 'fileinfo') {
+                continue;
+            }
+
+            $isExcluded = !(!$GLOBALS['TCA'][$this->table]['columns'][$name]['exclude'] || $this->getBackendUser()->check('non_exclude_fields', $this->table . ':' . $name));
+            if ($isExcluded) {
+                continue;
+            }
+            $label = $lang->sL(BackendUtility::getItemLabel($this->table, $name));
+            $label = $label ?: $name;
+
+            $propertiesForTable['fields'][] = [
+                'fieldValue' => BackendUtility::getProcessedValue($this->table, $name, $this->row[$name], 0, 0, false, $uid),
+                'fieldLabel' => htmlspecialchars($label)
+            ];
+        }
+
+        // additional information for folders and files
+        if ($this->folderObject instanceof Folder || $this->fileObject instanceof File) {
+            // storage
+            if ($this->folderObject instanceof Folder) {
+                $propertiesForTable['fields']['storage'] = [
+                    'fieldValue' => $this->folderObject->getStorage()->getName(),
+                    'fieldLabel' => htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.storage'))
+                ];
+            }
+
+            // folder
+            $resourceObject = $this->fileObject ?: $this->folderObject;
+            $propertiesForTable['fields']['folder'] = [
+                'fieldValue' => $resourceObject->getParentFolder()->getReadablePath(),
+                'fieldLabel' => htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:folder'))
+            ];
+
+            if ($this->fileObject instanceof File) {
+                // show file dimensions for images
+                if ($this->fileObject->getType() === AbstractFile::FILETYPE_IMAGE) {
+                    $propertiesForTable['fields']['width'] = [
+                        'fieldValue' => $this->fileObject->getProperty('width') . 'px',
+                        'fieldLabel' => htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.width'))
+                    ];
+                    $propertiesForTable['fields']['height'] = [
+                        'fieldValue' => $this->fileObject->getProperty('height') . 'px',
+                        'fieldLabel' => htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.height'))
+                    ];
+                }
+
+                // file size
+                $propertiesForTable['fields']['size'] = [
+                    'fieldValue' => GeneralUtility::formatSize((int)$this->fileObject->getProperty('size'), htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:byteSizeUnits'))),
+                    'fieldLabel' => $lang->sL(BackendUtility::getItemLabel($this->table, 'size'))
+                ];
+
+                // show the metadata of a file as well
+                $table = 'sys_file_metadata';
+                $metaDataRepository = GeneralUtility::makeInstance(MetaDataRepository::class);
+                $metaData = $metaDataRepository->findByFileUid($this->row['uid']);
+                $allowedFields = $this->getFieldList($table, (int)$metaData['uid']);
+
+                foreach ($metaData as $name => $value) {
+                    if (in_array($name, $allowedFields, true)) {
+                        if (!isset($GLOBALS['TCA'][$table]['columns'][$name])) {
+                            continue;
+                        }
+
+                        $isExcluded = !(!$GLOBALS['TCA'][$table]['columns'][$name]['exclude'] || $this->getBackendUser()->check('non_exclude_fields', $table . ':' . $name));
+                        if ($isExcluded) {
+                            continue;
+                        }
+
+                        $label = $lang->sL(BackendUtility::getItemLabel($table, $name));
+                        $label = $label ?: $name;
+
+                        $propertiesForTable['fields'][] = [
+                            'fieldValue' => BackendUtility::getProcessedValue($table, $name, $metaData[$name], 0, 0, false, $metaData['uid']),
+                            'fieldLabel' => htmlspecialchars($label)
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $propertiesForTable;
+    }
+
+    /**
+     * Get the list of fields that should be shown for the given table
+     *
+     * @param string $table
+     * @param int $uid
+     * @return array
+     */
+    protected function getFieldList(string $table, int $uid): array
+    {
+        $formDataGroup = GeneralUtility::makeInstance(TcaDatabaseRecord::class);
+        $formDataCompiler = GeneralUtility::makeInstance(FormDataCompiler::class, $formDataGroup);
+        $formDataCompilerInput = [
+            'command' => 'edit',
+            'tableName' => $table,
+            'vanillaUid' => $uid,
+        ];
+        try {
+            $result = $formDataCompiler->compile($formDataCompilerInput);
+            $fieldList = array_unique(array_values($result['columnsToProcess']));
+
+            $ctrlKeysOfUnneededFields = ['origUid', 'transOrigPointerField', 'transOrigDiffSourceField'];
+            foreach ($ctrlKeysOfUnneededFields as $field) {
+                if (($key = array_search($GLOBALS['TCA'][$table]['ctrl'][$field], $fieldList, true)) !== false) {
+                    unset($fieldList[$key]);
+                }
+            }
+        } catch (Exception $exception) {
+            $fieldList = [];
+        }
+
+        $searchFields = GeneralUtility::trimExplode(',', $GLOBALS['TCA'][$table]['ctrl']['searchFields']);
+
+        return array_unique(array_merge($fieldList, $searchFields));
+    }
+
+    /**
+     * Get the extra fields (uid, timestamps, creator) for the table
+     *
+     * @return array
+     */
+    protected function getExtraFields(): array
+    {
+        $lang = $this->getLanguageService();
+        $keyLabelPair = [];
         $extraFields = [
             'uid' => htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:show_item.php.uid'))
         ];
@@ -344,94 +497,45 @@ class ElementInformationController
             if ($this->type === 'file') {
                 $extraFields['creation_date'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.creationDate'));
                 $extraFields['modification_date'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.timestamp'));
-                if ($this->fileObject->getType() === AbstractFile::FILETYPE_IMAGE) {
-                    $extraFields['width'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.width'));
-                    $extraFields['height'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.height'));
-                }
             }
-            $extraFields['storage'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.storage'));
-            $extraFields['folder'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:folder'));
         } else {
-            $extraFields['crdate'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.creationDate'));
-            $extraFields['cruser_id'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.creationUserId'));
-            $extraFields['tstamp'] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.timestamp'));
-
-            // check if the special fields are defined in the TCA ctrl section of the table
-            foreach ($extraFields as $fieldName => $fieldLabel) {
-                if (isset($GLOBALS['TCA'][$this->table]['ctrl'][$fieldName])) {
-                    $extraFields[$GLOBALS['TCA'][$this->table]['ctrl'][$fieldName]] = $fieldLabel;
-                } elseif ($fieldName !== 'uid') {
-                    unset($extraFields[$fieldName]);
+            foreach (['crdate' => 'creationDate', 'tstamp' => 'timestamp', 'cruser_id' => 'creationUserId'] as $field => $label) {
+                if (isset($GLOBALS['TCA'][$this->table]['ctrl'][$field])) {
+                    $extraFields[$GLOBALS['TCA'][$this->table]['ctrl'][$field]] = htmlspecialchars($lang->sL('LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.' . $label));
                 }
             }
         }
 
         foreach ($extraFields as $name => $fieldLabel) {
-            $rowValue = '';
-            $thisRow = [];
-            if (!isset($this->row[$name])) {
-                $resourceObject = $this->fileObject ?: $this->folderObject;
-                if ($name === 'storage') {
-                    $rowValue = $resourceObject->getStorage()->getName();
-                } elseif ($name === 'folder') {
-                    $rowValue = $resourceObject->getParentFolder()->getReadablePath();
-                } elseif ($name === 'width') {
-                    $rowValue = $this->fileObject->getProperty('width') . 'px';
-                } elseif ($name === 'height') {
-                    $rowValue = $this->fileObject->getProperty('height') . 'px';
-                }
-            } elseif ($name === 'creation_date' || $name === 'modification_date' || $name === 'tstamp' || $name === 'crdate') {
+            if (in_array($name, ['creation_date', 'modification_date', 'tstamp', 'crdate'], true)) {
                 $rowValue = BackendUtility::datetime($this->row[$name]);
+                $keyLabelPair[$name] = [
+                    'value' => $rowValue,
+                    'fieldLabel' => rtrim($fieldLabel, ':'),
+                    'isDatetime' => true,
+                ];
             } else {
                 $rowValue = BackendUtility::getProcessedValueExtra($this->table, $name, $this->row[$name]);
-            }
-            $thisRow['value'] = $rowValue;
-            $thisRow['fieldLabel'] = rtrim($fieldLabel, ':');
-            // show the backend username who created the issue
-            if ($name === 'cruser_id' && $rowValue) {
-                $creatorRecord = BackendUtility::getRecord('be_users', $rowValue);
-                if ($creatorRecord) {
-                    /** @var Avatar $avatar */
-                    $avatar = GeneralUtility::makeInstance(Avatar::class);
-                    $creatorRecord['icon'] = $avatar->render($creatorRecord);
-                    $thisRow['creatorRecord'] = $creatorRecord;
-                    $thisRow['value'] = '';
+
+                // show the backend username who created the issue
+                if ($name === 'cruser_id' && $rowValue) {
+                    $creatorRecord = BackendUtility::getRecord('be_users', $rowValue);
+                    if ($creatorRecord) {
+                        /** @var Avatar $avatar */
+                        $avatar = GeneralUtility::makeInstance(Avatar::class);
+                        $creatorRecord['icon'] = $avatar->render($creatorRecord);
+                        $name = 'creatorRecord';
+                        $rowValue = $creatorRecord;
+                    }
                 }
+                $keyLabelPair[$name] = [
+                    'value' => $rowValue,
+                    'fieldLabel' => rtrim($fieldLabel, ':'),
+                ];
             }
-            $propertiesForTable['extraFields'][] = $thisRow;
         }
 
-        // Traverse the list of fields to display for the record:
-        $fieldList = GeneralUtility::trimExplode(',', $GLOBALS['TCA'][$this->table]['interface']['showRecordFieldList'], true);
-        foreach ($fieldList as $name) {
-            $thisRow = [];
-            $name = trim($name);
-            $uid = $this->row['uid'];
-
-            if (!isset($GLOBALS['TCA'][$this->table]['columns'][$name])) {
-                continue;
-            }
-
-            // Storage is already handled above
-            if ($this->type === 'file' && $name === 'storage') {
-                continue;
-            }
-
-            // format file size as bytes/kilobytes/megabytes
-            if ($this->type === 'file' && $name === 'size') {
-                $this->row[$name] = GeneralUtility::formatSize($this->row[$name], htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_common.xlf:byteSizeUnits')));
-            }
-
-            $isExcluded = !(!$GLOBALS['TCA'][$this->table]['columns'][$name]['exclude'] || $this->getBackendUser()->check('non_exclude_fields', $this->table . ':' . $name));
-            if ($isExcluded) {
-                continue;
-            }
-
-            $thisRow['fieldValue'] = BackendUtility::getProcessedValue($this->table, $name, $this->row[$name], 0, 0, false, $uid);
-            $thisRow['fieldLabel'] = htmlspecialchars($lang->sL(BackendUtility::getItemLabel($this->table, $name)));
-            $propertiesForTable['fields'][] = $thisRow;
-        }
-        return $propertiesForTable;
+        return $keyLabelPair;
     }
 
     /**
@@ -467,7 +571,7 @@ class ElementInformationController
      * @param string $fieldName Column name
      * @return string label
      */
-    protected function getLabelForTableColumn($tableName, $fieldName)
+    protected function getLabelForTableColumn($tableName, $fieldName): string
     {
         if ($GLOBALS['TCA'][$tableName]['columns'][$fieldName]['label'] !== null) {
             $field = $this->getLanguageService()->sL($GLOBALS['TCA'][$tableName]['columns'][$fieldName]['label']);
@@ -487,6 +591,7 @@ class ElementInformationController
      * @param int $uid
      * @param ServerRequestInterface $request
      * @return array
+     * @throws RouteNotFoundException
      */
     protected function getRecordActions($table, $uid, ServerRequestInterface $request): array
     {
@@ -504,8 +609,7 @@ class ElementInformationController
             ],
             'returnUrl' => $request->getAttribute('normalizedParams')->getRequestUri()
         ];
-        /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $actions['recordEditUrl'] = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
 
         // History button
@@ -533,8 +637,9 @@ class ElementInformationController
      * @param string|\TYPO3\CMS\Core\Resource\File $ref Filename or uid
      * @param ServerRequestInterface $request
      * @return array
+     * @throws RouteNotFoundException
      */
-    protected function makeRef($table, $ref, ServerRequestInterface $request)
+    protected function makeRef($table, $ref, ServerRequestInterface $request): array
     {
         $refLines = [];
         $lang = $this->getLanguageService();
@@ -546,7 +651,6 @@ class ElementInformationController
             $selectTable = $table;
             $selectUid = $ref;
         }
-        /** @var \TYPO3\CMS\Core\Database\Query\QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('sys_refindex');
 
@@ -586,7 +690,7 @@ class ElementInformationController
             if ($row['tablename'] === 'sys_file_reference') {
                 $row = $this->transformFileReferenceToRecordReference($row);
                 if ($row['tablename'] === null || $row['recuid'] === null) {
-                    return;
+                    return [];
                 }
             }
 
@@ -609,8 +713,7 @@ class ElementInformationController
                     ],
                     'returnUrl' => $request->getAttribute('normalizedParams')->getRequestUri()
                 ];
-                /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-                $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+                $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
                 $url = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
                 $line['url'] = $url;
                 $line['icon'] = $this->iconFactory->getIconForRecord($row['tablename'], $record, Icon::SIZE_SMALL)->render();
@@ -645,7 +748,6 @@ class ElementInformationController
         $refFromLines = [];
         $lang = $this->getLanguageService();
 
-        /** @var \TYPO3\CMS\Core\Database\Query\QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('sys_refindex');
 
@@ -693,8 +795,7 @@ class ElementInformationController
                     ],
                     'returnUrl' => $request->getAttribute('normalizedParams')->getRequestUri()
                 ];
-                /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-                $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+                $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
                 $url = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
                 $line['url'] = $url;
                 $line['icon'] = $this->iconFactory->getIconForRecord($row['tablename'], $record, Icon::SIZE_SMALL)->render();
@@ -721,9 +822,8 @@ class ElementInformationController
      * @param array $referenceRecord
      * @return array
      */
-    protected function transformFileReferenceToRecordReference(array $referenceRecord)
+    protected function transformFileReferenceToRecordReference(array $referenceRecord): array
     {
-        /** @var \TYPO3\CMS\Core\Database\Query\QueryBuilder $queryBuilder */
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable('sys_file_reference');
         $queryBuilder->getRestrictions()->removeAll();
@@ -757,26 +857,22 @@ class ElementInformationController
     protected function canAccessPage(string $tableName, array $record): bool
     {
         $recordPid = (int)($tableName === 'pages' ? $record['uid'] : $record['pid']);
-        return $this->getBackendUser()->isInWebMount($recordPid)
+        return $this->getBackendUser()->isInWebMount($tableName === 'pages' ? $record : $record['pid'])
             || $recordPid === 0 && !empty($GLOBALS['TCA'][$tableName]['ctrl']['security']['ignoreRootLevelRestriction']);
     }
 
     /**
-     * Returns LanguageService
-     *
-     * @return \TYPO3\CMS\Core\Localization\LanguageService
+     * @return LanguageService
      */
-    protected function getLanguageService()
+    protected function getLanguageService(): LanguageService
     {
         return $GLOBALS['LANG'];
     }
 
     /**
-     * Returns the current BE user.
-     *
-     * @return \TYPO3\CMS\Core\Authentication\BackendUserAuthentication
+     * @return BackendUserAuthentication
      */
-    protected function getBackendUser()
+    protected function getBackendUser(): BackendUserAuthentication
     {
         return $GLOBALS['BE_USER'];
     }

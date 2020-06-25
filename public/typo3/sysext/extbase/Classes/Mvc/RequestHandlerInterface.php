@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Mvc;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,15 @@ namespace TYPO3\CMS\Extbase\Mvc;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Mvc;
+
 /**
  * The interface for a request handler
  */
 interface RequestHandlerInterface
 {
     /**
-     * Handles a raw request and returns the respsonse.
+     * Handles a raw request and returns the response.
      *
      * @return \TYPO3\CMS\Extbase\Mvc\ResponseInterface
      */

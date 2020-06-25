@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Seo\XmlSitemap;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,11 +15,13 @@ namespace TYPO3\CMS\Seo\XmlSitemap;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Seo\XmlSitemap;
+
 use Psr\Http\Message\ServerRequestInterface;
-use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Extbase\Configuration\ConfigurationManagerInterface;
+use TYPO3\CMS\Extbase\Object\Exception;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 use TYPO3\CMS\Seo\XmlSitemap\Exception\InvalidConfigurationException;
@@ -37,46 +38,49 @@ class XmlSitemapRenderer
     protected $configuration;
 
     /**
-     * @var \TYPO3\CMS\Fluid\View\StandaloneView
+     * @var StandaloneView
      */
     protected $view;
 
+    /**
+     * XmlSitemapRenderer constructor.
+     * @throws Exception
+     */
     public function __construct()
     {
         $this->configuration = $this->getConfiguration();
         $this->view = $this->getStandaloneView();
-        $this->view->assign(
-            'xslFile',
-            PathUtility::stripPathSitePrefix(
-                ExtensionManagementUtility::extPath('seo', 'Resources/Public/CSS/Sitemap.xsl')
-            )
-        );
     }
 
     /**
+     * @param string $_ unused, but needed as this is called via userfunc and passes a string as first parameter
+     * @param array $typoScriptConfiguration TypoScript configuration specified in USER Content Object
      * @return string
      * @throws InvalidConfigurationException
      */
-    public function render(): string
+    public function render(string $_, array $typoScriptConfiguration): string
     {
         // Inject request from globals until request will be available to cObj
         $request = $GLOBALS['TYPO3_REQUEST'];
         $this->view->assign('type', $GLOBALS['TSFE']->type);
+        $sitemapType = $typoScriptConfiguration['sitemapType'] ?? 'xmlSitemap';
+        $this->view->assign('xslFile', $this->getXslFilePath($sitemapType));
         if (!empty($sitemap = $request->getQueryParams()['sitemap'])) {
-            return $this->renderSitemap($request, $sitemap);
+            return $this->renderSitemap($request, $sitemap, $sitemapType);
         }
 
-        return $this->renderIndex($request);
+        return $this->renderIndex($request, $sitemapType);
     }
 
     /**
-     * @param \Psr\Http\Message\ServerRequestInterface $request
+     * @param ServerRequestInterface $request
+     * @param string $sitemapType
      * @return string
      */
-    protected function renderIndex(ServerRequestInterface $request): string
+    protected function renderIndex(ServerRequestInterface $request, string $sitemapType): string
     {
         $sitemaps = [];
-        foreach ($this->configuration['config']['xmlSitemap']['sitemaps'] ?? [] as $sitemap => $config) {
+        foreach ($this->configuration['config'][$sitemapType]['sitemaps'] ?? [] as $sitemap => $config) {
             if (class_exists($config['provider']) &&
                 is_subclass_of($config['provider'], XmlSitemapDataProviderInterface::class)) {
                 /** @var XmlSitemapDataProviderInterface $provider */
@@ -99,6 +103,7 @@ class XmlSitemapRenderer
             }
         }
 
+        $this->view->assign('sitemapType', $sitemapType);
         $this->view->assign('sitemaps', $sitemaps);
         $this->view->setTemplate('Index');
 
@@ -106,14 +111,15 @@ class XmlSitemapRenderer
     }
 
     /**
-     * @param \Psr\Http\Message\ServerRequestInterface $request
+     * @param ServerRequestInterface $request
      * @param string $sitemap
+     * @param string $sitemapType
      * @return string
-     * @throws \TYPO3\CMS\Seo\XmlSitemap\Exception\InvalidConfigurationException
+     * @throws InvalidConfigurationException
      */
-    protected function renderSitemap(ServerRequestInterface $request, string $sitemap): string
+    protected function renderSitemap(ServerRequestInterface $request, string $sitemap, string $sitemapType): string
     {
-        if (!empty($sitemapConfig = $this->configuration['config']['xmlSitemap']['sitemaps'][$sitemap])) {
+        if (!empty($sitemapConfig = $this->configuration['config'][$sitemapType]['sitemaps'][$sitemap])) {
             if (class_exists($sitemapConfig['provider']) &&
                 is_subclass_of($sitemapConfig['provider'], XmlSitemapDataProviderInterface::class)) {
                 /** @var XmlSitemapDataProviderInterface $provider */
@@ -128,7 +134,9 @@ class XmlSitemapRenderer
 
                 $template = $sitemapConfig['config']['template'] ?: 'Sitemap';
                 $this->view->setTemplate($template);
+                $this->view->assign('xslFile', $this->getXslFilePath($sitemapType, $sitemap));
                 $this->view->assign('items', $items);
+                $this->view->assign('sitemapType', $sitemapType);
 
                 return $this->view->render();
             }
@@ -139,7 +147,7 @@ class XmlSitemapRenderer
     }
 
     /**
-     * @return \TYPO3\CMS\Fluid\View\StandaloneView
+     * @return StandaloneView
      */
     protected function getStandaloneView(): StandaloneView
     {
@@ -153,8 +161,22 @@ class XmlSitemapRenderer
     }
 
     /**
+     * @param string|null $sitemapType
+     * @param string|null $sitemap
+     * @return string
+     */
+    protected function getXslFilePath(string $sitemapType = null, string $sitemap = null): string
+    {
+        $path = $this->configuration['config']['xslFile'] ?? 'EXT:seo/Resources/Public/CSS/Sitemap.xsl';
+        $path = ($sitemapType !== null) ? ($this->configuration['config'][$sitemapType]['sitemaps']['xslFile'] ?? $path) : $path;
+        $path = ($sitemapType !== null && $sitemap !== null) ? ($this->configuration['config'][$sitemapType]['sitemaps'][$sitemap]['config']['xslFile'] ?? $path) : $path;
+        return PathUtility::getAbsoluteWebPath(GeneralUtility::getFileAbsFileName($path));
+    }
+
+    /**
      * Get the whole typoscript array
      * @return array
+     * @throws Exception
      */
     private function getConfiguration(): array
     {

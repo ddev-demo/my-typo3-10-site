@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,10 +15,18 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Finishers;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
 use TYPO3\CMS\Form\Domain\Finishers\Exception\FinisherException;
+use TYPO3\CMS\Form\Domain\Model\FormElements\StringableFormElementInterface;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\Service\TranslationService;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
@@ -75,7 +81,7 @@ abstract class AbstractFinisher implements FinisherInterface
      * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
      * @internal
      */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
+    public function injectObjectManager(ObjectManagerInterface $objectManager)
     {
         $this->objectManager = $objectManager;
     }
@@ -256,14 +262,14 @@ abstract class AbstractFinisher implements FinisherInterface
     }
 
     /**
-     * You can encapsulate a option value with {}.
-     * This enables you to access every getable property from the
+     * You can encapsulate an option value with {}.
+     * This enables you to access every gettable property from the
      * TYPO3\CMS\Form\Domain\Runtime\FormRuntime.
      *
-     * For example: {formState.formValues.<elemenIdentifier>}
-     * or {<elemenIdentifier>}
+     * For example: {formState.formValues.<elementIdentifier>}
+     * or {<elementIdentifier>}
      *
-     * Both examples are equal to "$formRuntime->getFormState()->getFormValues()[<elemenIdentifier>]"
+     * Both examples are equal to "$formRuntime->getFormState()->getFormValues()[<elementIdentifier>]"
      * There is a special option value '{__currentTimestamp}'.
      * This will be replaced with the current timestamp.
      *
@@ -280,12 +286,13 @@ abstract class AbstractFinisher implements FinisherInterface
 
         // resolve (recursively) all array items
         if (is_array($needle)) {
-            return array_map(
-                function ($item) use ($formRuntime) {
-                    return $this->substituteRuntimeReferences($item, $formRuntime);
-                },
-                $needle
-            );
+            $substitutedNeedle = [];
+            foreach ($needle as $key => $item) {
+                $key = $this->substituteRuntimeReferences($key, $formRuntime);
+                $item = $this->substituteRuntimeReferences($item, $formRuntime);
+                $substitutedNeedle[$key] = $item;
+            }
+            return $substitutedNeedle;
         }
 
         // substitute one(!) variable in string which either could result
@@ -341,8 +348,23 @@ abstract class AbstractFinisher implements FinisherInterface
         if ($property === '__currentTimestamp') {
             return time();
         }
+
         // try to resolve the path '{...}' within the FormRuntime
         $value = ObjectAccess::getPropertyPath($formRuntime, $property);
+
+        if (is_object($value)) {
+            $element = $formRuntime->getFormDefinition()->getElementByIdentifier($property);
+
+            if (!$element instanceof StringableFormElementInterface) {
+                throw new FinisherException(
+                    sprintf('Cannot convert object value of "%s" to string', $property),
+                    1574362327
+                );
+            }
+
+            $value = $element->valueToString($value);
+        }
+
         if ($value === null) {
             // try to resolve the path '{...}' within the FinisherVariableProvider
             $value = ObjectAccess::getPropertyPath(
@@ -350,9 +372,11 @@ abstract class AbstractFinisher implements FinisherInterface
                 $property
             );
         }
+
         if ($value !== null) {
             return $value;
         }
+
         // in case no value could be resolved
         return '{' . $property . '}';
     }

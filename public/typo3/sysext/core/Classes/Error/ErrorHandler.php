@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Error;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,18 @@ namespace TYPO3\CMS\Core\Error;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Error;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageService;
+use TYPO3\CMS\Core\SysLog\Action as SystemLogGenericAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
+use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -103,6 +108,7 @@ class ErrorHandler implements ErrorHandlerInterface, LoggerAwareInterface
      */
     public function handleError($errorLevel, $errorMessage, $errorFile, $errorLine)
     {
+        $flashMessageSeverity = FlashMessage::OK;
         // Don't do anything if error_reporting is disabled by an @ sign or $errorLevel is something we won't handle
         $shouldHandleErrorLevel = (bool)($this->errorHandlerErrors & $errorLevel);
         if (error_reporting() === 0 || !$shouldHandleErrorLevel) {
@@ -170,13 +176,13 @@ class ErrorHandler implements ErrorHandlerInterface, LoggerAwareInterface
         if ($this->debugMode) {
             /** @var \TYPO3\CMS\Core\Messaging\FlashMessage $flashMessage */
             $flashMessage = GeneralUtility::makeInstance(
-                \TYPO3\CMS\Core\Messaging\FlashMessage::class,
+                FlashMessage::class,
                 $message,
                 $errorLevels[$errorLevel],
                 $flashMessageSeverity
             );
             /** @var \TYPO3\CMS\Core\Messaging\FlashMessageService $flashMessageService */
-            $flashMessageService = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Messaging\FlashMessageService::class);
+            $flashMessageService = GeneralUtility::makeInstance(FlashMessageService::class);
             /** @var \TYPO3\CMS\Core\Messaging\FlashMessageQueue $defaultFlashMessageQueue */
             $defaultFlashMessageQueue = $flashMessageService->getMessageQueueByIdentifier();
             $defaultFlashMessageQueue->enqueue($flashMessage);
@@ -216,9 +222,10 @@ class ErrorHandler implements ErrorHandlerInterface, LoggerAwareInterface
                 'sys_log',
                 [
                     'userid' => $userId,
-                    'type' => 5,
-                    'action' => 0,
-                    'error' => $severity,
+                    'type' => SystemLogType::ERROR,
+                    'action' => SystemLogGenericAction::UNDEFINED,
+                    'error' => SystemLogErrorClassification::SYSTEM_ERROR,
+                    'level' => $severity,
                     'details_nr' => 0,
                     'details' => str_replace('%', '%%', $logMessage),
                     'log_data' => empty($data) ? '' : serialize($data),

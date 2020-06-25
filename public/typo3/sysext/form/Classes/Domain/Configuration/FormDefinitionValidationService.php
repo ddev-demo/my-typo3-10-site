@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Domain\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Domain\Configuration;
 
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -306,7 +308,7 @@ class FormDefinitionValidationService implements SingletonInterface
     /**
      * Walk through all form element properties and checks
      * if the property is defined within the form editor setup
-     * or if the property is definied within the "predefinedDefaults" in the form editor setup
+     * or if the property is defined within the "predefinedDefaults" in the form editor setup
      * and the property value matches the predefined value
      * or if there is a valid hmac hash for the value.
      *
@@ -337,7 +339,7 @@ class FormDefinitionValidationService implements SingletonInterface
     /**
      * Walk through all property collection properties and checks
      * if the property is defined within the form editor setup
-     * or if the property is definied within the "predefinedDefaults" in the form editor setup
+     * or if the property is defined within the "predefinedDefaults" in the form editor setup
      * and the property value matches the predefined value
      * or if there is a valid hmac hash for the value.
      *

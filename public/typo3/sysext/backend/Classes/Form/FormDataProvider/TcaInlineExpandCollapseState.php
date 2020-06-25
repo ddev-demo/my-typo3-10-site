@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\FormDataProvider;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FormDataProvider;
 
 use TYPO3\CMS\Backend\Form\FormDataProviderInterface;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -32,7 +33,7 @@ class TcaInlineExpandCollapseState implements FormDataProviderInterface
     public function addData(array $result)
     {
         if (empty($result['inlineExpandCollapseStateArray'])) {
-            $fullInlineState = json_decode($this->getBackendUser()->uc['inlineView'], true);
+            $fullInlineState = json_decode($this->getBackendUser()->uc['inlineView'] ?? null, true);
             if (!is_array($fullInlineState)) {
                 $fullInlineState = [];
             }

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,9 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  * The TYPO3 project - inspiring people to share!
  */
 
-use Symfony\Component\Mime\NamedAddress;
+namespace TYPO3\CMS\Form\Domain\Finishers;
+
+use Symfony\Component\Mime\Address;
 use TYPO3\CMS\Core\Mail\MailMessage;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Extbase\Domain\Model\FileReference;
@@ -74,6 +76,7 @@ class EmailFinisher extends AbstractFinisher
      */
     protected function executeInternal()
     {
+        $languageBackup = null;
         // Flexform overrides write strings instead of integers so
         // we need to cast the string '0' to false.
         if (
@@ -105,7 +108,7 @@ class EmailFinisher extends AbstractFinisher
 
         $mail = $this->objectManager->get(MailMessage::class);
 
-        $mail->from(new NamedAddress($senderAddress, $senderName))
+        $mail->from(new Address($senderAddress, $senderName))
             ->to(...$recipients)
             ->subject($subject);
 
@@ -237,7 +240,7 @@ class EmailFinisher extends AbstractFinisher
      *
      * @param string $listOption List option name
      * @param string $singleAddressOption Single address option
-     * @param string $singleAddressName Single address name
+     * @param string|null $singleAddressNameOption Single address name
      * @return array
      *
      * @deprecated since TYPO3 v10.0, will be removed in TYPO3 v11.0.
@@ -282,7 +285,7 @@ class EmailFinisher extends AbstractFinisher
             if (empty($address)) {
                 continue;
             }
-            $addresses[] = new NamedAddress($address, $name);
+            $addresses[] = new Address($address, $name);
         }
         return $addresses;
     }

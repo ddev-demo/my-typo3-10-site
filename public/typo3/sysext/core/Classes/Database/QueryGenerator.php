@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Database;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Database;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
@@ -285,7 +286,7 @@ class QueryGenerator
         if (is_array($GLOBALS['TCA'][$table])) {
             $this->name = $name;
             $this->table = $table;
-            $this->fieldList = $fieldList ? $fieldList : $this->makeFieldList();
+            $this->fieldList = $fieldList ?: $this->makeFieldList();
             $fieldArr = GeneralUtility::trimExplode(',', $this->fieldList, true);
             foreach ($fieldArr as $fieldName) {
                 $fC = $GLOBALS['TCA'][$this->table]['columns'][$fieldName];
@@ -710,7 +711,7 @@ class QueryGenerator
                     $lineHTML[] = '</div>';
             }
             if ($fieldType !== 'ignore') {
-                $lineHTML[] = '<div class="btn-group action-button-group">';
+                $lineHTML[] = '<div class="btn-group" style="margin-top: .5em;">';
                 $lineHTML[] = $this->updateIcon();
                 if ($loopCount) {
                     $lineHTML[] = '<button class="btn btn-default" title="Remove condition" name="qG_del' . htmlspecialchars($subscript) . '"><i class="fa fa-trash fa-fw"></i></button>';
@@ -768,6 +769,7 @@ class QueryGenerator
      */
     public function makeOptionList($fieldName, $conf, $table)
     {
+        $from_table_Arr = [];
         $out = [];
         $fieldSetup = $this->fields[$fieldName];
         $languageService = $this->getLanguageService();
@@ -802,10 +804,10 @@ class QueryGenerator
                 } else {
                     $value = $val[0];
                 }
-                if (GeneralUtility::inList($conf['inputValue'], pow(2, $key))) {
-                    $out[] = '<option value="' . pow(2, $key) . '" selected>' . htmlspecialchars($value) . '</option>';
+                if (GeneralUtility::inList($conf['inputValue'], 2 ** $key)) {
+                    $out[] = '<option value="' . 2 ** $key . '" selected>' . htmlspecialchars($value) . '</option>';
                 } else {
-                    $out[] = '<option value="' . pow(2, $key) . '">' . htmlspecialchars($value) . '</option>';
+                    $out[] = '<option value="' . 2 ** $key . '">' . htmlspecialchars($value) . '</option>';
                 }
             }
         }
@@ -990,13 +992,10 @@ class QueryGenerator
      */
     public function printCodeArray($codeArr, $recursionLevel = 0)
     {
-        $indent = 'row-group';
-        if ($recursionLevel) {
-            $indent = 'row-group indent indent-' . (int)$recursionLevel;
-        }
         $out = [];
         foreach ($codeArr as $k => $v) {
-            $out[] = '<div class="' . $indent . '">';
+            $out[] = '<div class="card">';
+            $out[] = '<div class="card-content">';
             $out[] = $v['html'];
 
             if ($this->enableQueryParts) {
@@ -1005,11 +1004,11 @@ class QueryGenerator
                 $out[] = '</pre>';
             }
             if (is_array($v['sub'])) {
-                $out[] = '<div class="' . $indent . '">';
+                $out[] = '<div>';
                 $out[] = $this->printCodeArray($v['sub'], $recursionLevel + 1);
                 $out[] = '</div>';
             }
-
+            $out[] = '</div>';
             $out[] = '</div>';
         }
         return implode(LF, $out);
@@ -1028,10 +1027,12 @@ class QueryGenerator
     {
         $out = [];
         if ($draw) {
-            $out[] = '<select class="form-control from-control-operator' . ($submit ? ' t3js-submit-change' : '') . '" name="' . htmlspecialchars($name) . '[operator]">';
+            $out[] = '<div class="form-inline">';
+            $out[] = '<select class="form-control' . ($submit ? ' t3js-submit-change' : '') . '" name="' . htmlspecialchars($name) . '[operator]">';
             $out[] = '	<option value="AND"' . (!$op || $op === 'AND' ? ' selected' : '') . '>' . htmlspecialchars($this->lang['AND']) . '</option>';
             $out[] = '	<option value="OR"' . ($op === 'OR' ? ' selected' : '') . '>' . htmlspecialchars($this->lang['OR']) . '</option>';
             $out[] = '</select>';
+            $out[] = '</div>';
         } else {
             $out[] = '<input type="hidden" value="' . htmlspecialchars($op) . '" name="' . htmlspecialchars($name) . '[operator]">';
         }
@@ -1113,12 +1114,10 @@ class QueryGenerator
     public function mkFieldToInputSelect($name, $fieldName)
     {
         $out = [];
-        $out[] = '<div class="input-group">';
-        $out[] = '	<div class="input-group-addon">';
-        $out[] = '		<span class="input-group-btn">';
+        $out[] = '<div class="input-group" style="margin-bottom: .5em;">';
+        $out[] = '	<span class="input-group-btn">';
         $out[] = $this->updateIcon();
-        $out[] = ' 		</span>';
-        $out[] = ' 	</div>';
+        $out[] = ' 	</span>';
         $out[] = '	<input type="text" class="form-control t3js-clearable" value="' . htmlspecialchars($fieldName) . '" name="' . htmlspecialchars($name) . '">';
         $out[] = '</div>';
 
@@ -1312,14 +1311,18 @@ class QueryGenerator
         $prefix = $this->enablePrefix ? $this->table . '.' : '';
         if (!$first) {
             // Is it OK to insert the AND operator if none is set?
-            $qs .= trim($conf['operator'] ?: 'AND') . ' ';
+            $operator = strtoupper(trim($conf['operator']));
+            if (!in_array($operator, ['AND', 'OR'], true)) {
+                $operator = 'AND';
+            }
+            $qs .= $operator . ' ';
         }
         $qsTmp = str_replace('#FIELD#', $prefix . trim(substr($conf['type'], 6)), $this->compSQL[$conf['comparison']]);
         $inputVal = $this->cleanInputVal($conf);
         if ($conf['comparison'] === 68 || $conf['comparison'] === 69) {
             $inputVal = explode(',', $inputVal);
             foreach ($inputVal as $key => $fileName) {
-                $inputVal[$key] = '\'' . $fileName . '\'';
+                $inputVal[$key] = $queryBuilder->quote($fileName);
             }
             $inputVal = implode(',', $inputVal);
             $qsTmp = str_replace('#VALUE#', $inputVal, $qsTmp);
@@ -1459,7 +1462,7 @@ class QueryGenerator
                 $this->extFieldLists['queryOrder_SQL'] = implode(',', $reList);
             }
             // Query Generator:
-            $this->procesData($modSettings['queryConfig'] ? unserialize($modSettings['queryConfig']) : '');
+            $this->procesData($modSettings['queryConfig'] ? unserialize($modSettings['queryConfig'], ['allowed_classes' => false]) : '');
             $this->queryConfig = $this->cleanUpQueryConfig($this->queryConfig);
             $this->enableQueryParts = (bool)$modSettings['search_query_smallparts'];
             $codeArr = $this->getFormElements();
@@ -1509,11 +1512,9 @@ class QueryGenerator
             if (in_array('limit', $enableArr) && !$userTsConfig['mod.']['dbint.']['disableLimit']) {
                 $limit = [];
                 $limit[] = '<div class="input-group">';
-                $limit[] = '	<div class="input-group-addon">';
-                $limit[] = '		<span class="input-group-btn">';
+                $limit[] = '	<span class="input-group-btn">';
                 $limit[] = $this->updateIcon();
-                $limit[] = '		</span>';
-                $limit[] = '	</div>';
+                $limit[] = '	</span>';
                 $limit[] = '	<input type="text" class="form-control" value="' . htmlspecialchars($this->extFieldLists['queryLimit']) . '" name="SET[queryLimit]" id="queryLimit">';
                 $limit[] = '</div>';
 
@@ -1536,21 +1537,19 @@ class QueryGenerator
                     $nextButton = '<input type="button" class="btn btn-default" value="next ' . htmlspecialchars($this->limitLength) . '" data-value="' . htmlspecialchars($nextLimit . ',' . $this->limitLength) . '">';
                 }
 
-                $out[] = '<div class="form-group form-group-with-button-addon">';
+                $out[] = '<div class="form-group">';
                 $out[] = '	<label>Limit:</label>';
                 $out[] = '	<div class="form-inline">';
                 $out[] =        implode(LF, $limit);
-                $out[] = '		<div class="input-group">';
-                $out[] = '			<div class="btn-group t3js-limit-submit">';
-                $out[] =                $prevButton;
-                $out[] =                $nextButton;
-                $out[] = '			</div>';
-                $out[] = '			<div class="btn-group t3js-limit-submit">';
-                $out[] = '				<input type="button" class="btn btn-default" data-value="10" value="10">';
-                $out[] = '				<input type="button" class="btn btn-default" data-value="20" value="20">';
-                $out[] = '				<input type="button" class="btn btn-default" data-value="50" value="50">';
-                $out[] = '				<input type="button" class="btn btn-default" data-value="100" value="100">';
-                $out[] = '			</div>';
+                $out[] = '		<div class="btn-group t3js-limit-submit">';
+                $out[] =            $prevButton;
+                $out[] =            $nextButton;
+                $out[] = '		</div>';
+                $out[] = '		<div class="btn-group t3js-limit-submit">';
+                $out[] = '			<input type="button" class="btn btn-default" data-value="10" value="10">';
+                $out[] = '			<input type="button" class="btn btn-default" data-value="20" value="20">';
+                $out[] = '			<input type="button" class="btn btn-default" data-value="50" value="50">';
+                $out[] = '			<input type="button" class="btn btn-default" data-value="100" value="100">';
                 $out[] = '		</div>';
                 $out[] = '	</div>';
                 $out[] = '</div>';
@@ -1640,7 +1639,7 @@ class QueryGenerator
         }
         if ($this->extFieldLists['queryOrder']) {
             foreach (QueryHelper::parseOrderBy($this->extFieldLists['queryOrder_SQL']) as $orderPair) {
-                list($fieldName, $order) = $orderPair;
+                [$fieldName, $order] = $orderPair;
                 $queryBuilder->addOrderBy($fieldName, $order);
             }
         }

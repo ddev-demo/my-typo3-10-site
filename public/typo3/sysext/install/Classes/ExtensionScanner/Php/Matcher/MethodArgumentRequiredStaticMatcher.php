@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Install\ExtensionScanner\Php\Matcher;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Install\ExtensionScanner\Php\Matcher;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\ExtensionScanner\Php\Matcher;
 
 use PhpParser\Node;
 use PhpParser\Node\Expr\StaticCall;
@@ -61,7 +63,7 @@ class MethodArgumentRequiredStaticMatcher extends AbstractCoreMatcher
                 if (!$isArgumentUnpackingUsed
                     && array_key_exists($fqdnClassWithMethod, $this->matcherDefinitions)
                     && $numberOfArguments < $this->matcherDefinitions[$fqdnClassWithMethod]['numberOfMandatoryArguments']
-                    // maximum number of arguments is just a measure agains false positives
+                    // maximum number of arguments is just a measure against false positives
                     && $numberOfArguments <= $this->matcherDefinitions[$fqdnClassWithMethod]['maximumNumberOfArguments']
                 ) {
                     $this->matches[] = [
@@ -89,7 +91,7 @@ class MethodArgumentRequiredStaticMatcher extends AbstractCoreMatcher
                     // and number of used arguments is lesser than numberOfMandatoryArguments
                     if (!$isArgumentUnpackingUsed
                         && $numberOfArguments < $candidate['numberOfMandatoryArguments']
-                        // maximum number of arguments is just a measure agains false positives
+                        // maximum number of arguments is just a measure against false positives
                         && $numberOfArguments <= $candidate['maximumNumberOfArguments']
                     ) {
                         $isPossibleMatch = true;

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,9 +12,13 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Widget;
+
 use TYPO3\CMS\Extbase\Persistence\ObjectStorage;
 use TYPO3\CMS\Extbase\Persistence\QueryResultInterface;
 use TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper;
+use TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController;
 
 /**
  * This ViewHelper renders a Pagination of objects.
@@ -43,6 +46,8 @@ use TYPO3\CMS\Fluid\Core\Widget\AbstractWidgetViewHelper;
  *       a <f:for> loop.
  *    </f:widget.paginate>
  *
+ * The storeSession attribute can be used in any widget and will prevent cookie creation / session storage for the widget.
+ *
  * Performance characteristics
  * ===========================
  *
@@ -63,7 +68,7 @@ class PaginateViewHelper extends AbstractWidgetViewHelper
     /**
      * @param \TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController $controller
      */
-    public function injectPaginateController(\TYPO3\CMS\Fluid\ViewHelpers\Widget\Controller\PaginateController $controller)
+    public function injectPaginateController(PaginateController $controller)
     {
         $this->controller = $controller;
     }

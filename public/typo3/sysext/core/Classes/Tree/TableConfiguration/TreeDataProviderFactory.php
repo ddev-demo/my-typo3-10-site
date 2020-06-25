@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Tree\TableConfiguration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,11 @@ namespace TYPO3\CMS\Core\Tree\TableConfiguration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Tree\TableConfiguration;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
+
 /**
  * Builds a \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeDataProvider
  * object based on some TCA configuration
@@ -24,29 +28,49 @@ class TreeDataProviderFactory
      * Gets the data provider, depending on TCA configuration
      *
      * @param array $tcaConfiguration
-     * @param $table
-     * @param $field
+     * @param string $table
+     * @param string $field
      * @param array $currentValue The current database row, handing over 'uid' is enough
      * @return DatabaseTreeDataProvider
      * @throws \InvalidArgumentException
      */
     public static function getDataProvider(array $tcaConfiguration, $table, $field, $currentValue)
     {
-        /** @var \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeDataProvider $dataProvider */
+        /** @var DatabaseTreeDataProvider $dataProvider */
         $dataProvider = null;
         if (!isset($tcaConfiguration['treeConfig']) || !is_array($tcaConfiguration['treeConfig'])) {
             throw new \InvalidArgumentException('TCA Tree configuration is invalid: "treeConfig" array is missing', 1288215890);
         }
 
         if (!empty($tcaConfiguration['treeConfig']['dataProvider'])) {
-            $dataProvider = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance($tcaConfiguration['treeConfig']['dataProvider'], $tcaConfiguration, $table, $field, $currentValue);
+            // This is a hack since TYPO3 v10 we use this to inject the EventDispatcher in the first argument
+            // For TYPO3 Core, but this is only possible if the dataProvider is extending from the DatabaseTreeDataProvider
+            // but did NOT use a custom constructor. This way, the original constructor receives the EventDispatcher properly
+            // as first argument. It is encouraged to use a custom constructor that also receives the EventDispatcher
+            // separately.
+            $reflectionClass = new \ReflectionClass($tcaConfiguration['treeConfig']['dataProvider']);
+            if ($reflectionClass->getConstructor()->getDeclaringClass()->getName() === DatabaseTreeDataProvider::class) {
+                $dataProvider = GeneralUtility::makeInstance(
+                    $tcaConfiguration['treeConfig']['dataProvider'],
+                    GeneralUtility::makeInstance(EventDispatcherInterface::class)
+                );
+            } else {
+                $dataProvider = GeneralUtility::makeInstance(
+                    $tcaConfiguration['treeConfig']['dataProvider'],
+                    $tcaConfiguration,
+                    $table,
+                    $field,
+                    $currentValue,
+                    GeneralUtility::makeInstance(EventDispatcherInterface::class)
+                );
+            }
         }
         if (!isset($tcaConfiguration['internal_type'])) {
             $tcaConfiguration['internal_type'] = 'db';
         }
         if ($tcaConfiguration['internal_type'] === 'db') {
             if ($dataProvider === null) {
-                $dataProvider = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeDataProvider::class);
+                $dataProvider = GeneralUtility::makeInstance(DatabaseTreeDataProvider::class);
             }
             if (isset($tcaConfiguration['foreign_table'])) {
                 $tableName = $tcaConfiguration['foreign_table'];

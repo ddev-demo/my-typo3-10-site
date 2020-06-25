@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Package;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Package;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Package;
 
 use Psr\Container\ContainerInterface;
 
@@ -65,7 +67,7 @@ final class PseudoServiceProvider extends AbstractServiceProvider
         // therefore we dynamically inject the package path to the static service
         // configure methods by wrapping these in a Closure.
         // AbstractServiceProvider configure methods are aware of this and
-        // provide an optional thrid parameter which is forwarded as
+        // provide an optional third parameter which is forwarded as
         // dynamic path to getPackagePath().
         foreach ($extensions as $serviceName => $previousCallable) {
             $extensions[$serviceName] = function (ContainerInterface $container, $value) use ($previousCallable, $packagePath) {

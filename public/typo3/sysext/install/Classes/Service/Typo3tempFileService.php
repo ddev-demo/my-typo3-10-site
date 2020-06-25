@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Install\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Service;
+
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Resource\ProcessedFileRepository;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -28,6 +30,15 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class Typo3tempFileService
 {
+    private $processedFileRepository;
+    private $storageRepository;
+
+    public function __construct(ProcessedFileRepository $processedFileRepository, StorageRepository $storageRepository)
+    {
+        $this->processedFileRepository = $processedFileRepository;
+        $this->storageRepository = $storageRepository;
+    }
+
     /**
      * Returns a list of directory names in typo3temp/assets and their number of files
      *
@@ -39,6 +50,12 @@ class Typo3tempFileService
             $this->statsFromTypo3temp(),
             $this->statsFromStorages()
         );
+    }
+
+    public function getStatsFromStorageByUid(int $storageUid): array
+    {
+        $storage = $this->storageRepository->findByUid($storageUid);
+        return $this->getStatsFromStorage($storage);
     }
 
     /**
@@ -83,22 +100,27 @@ class Typo3tempFileService
     protected function statsFromStorages(): array
     {
         $stats = [];
-        $processedFileRepository = GeneralUtility::makeInstance(ProcessedFileRepository::class);
-        $storages = GeneralUtility::makeInstance(StorageRepository::class)->findAll();
+        $storages = $this->storageRepository->findAll();
         foreach ($storages as $storage) {
             if ($storage->isOnline()) {
-                $storageConfiguration = $storage->getConfiguration();
-                $storageBasePath = rtrim($storageConfiguration['basePath'], '/');
-                $processedPath = '/' . $storageBasePath . $storage->getProcessingFolder()->getIdentifier();
-                $numberOfFiles = $processedFileRepository->countByStorage($storage);
-                $stats[] = [
-                    'directory' => $processedPath,
-                    'numberOfFiles' => $numberOfFiles,
-                    'storageUid' => $storage->getUid()
-                ];
+                $stats[] = $this->getStatsFromStorage($storage);
             }
         }
         return $stats;
+    }
+
+    protected function getStatsFromStorage(ResourceStorage $storage): array
+    {
+        $storageConfiguration = $storage->getConfiguration();
+        $storageBasePath = rtrim($storageConfiguration['basePath'], '/');
+        $processedPath = '/' . $storageBasePath . $storage->getProcessingFolder()->getIdentifier();
+        $numberOfFiles = $this->processedFileRepository->countByStorage($storage);
+
+        return [
+            'directory' => $processedPath,
+            'numberOfFiles' => $numberOfFiles,
+            'storageUid' => $storage->getUid()
+        ];
     }
 
     /**
@@ -114,7 +136,7 @@ class Typo3tempFileService
     }
 
     /**
-     * Clear files in a typo3temp/assets/ folder (not _processed_!)
+     * Clears files and folders in a typo3temp/assets/ folder (not _processed_!)
      *
      * @param string $folderName
      * @return bool TRUE if all went well
@@ -139,9 +161,14 @@ class Typo3tempFileService
             );
         }
 
-        $finder = new Finder();
-        $files = $finder->files()->in($basePath)->depth(0)->sortByName();
-        foreach ($files as $file) {
+        // first remove directories
+        foreach ((new Finder())->directories()->in($basePath)->depth(0) as $directory) {
+            /** @var SplFileInfo $directory */
+            GeneralUtility::rmdir($directory->getPathname(), true);
+        }
+
+        // then remove files directly in the main dir
+        foreach ((new Finder())->files()->in($basePath)->depth(0) as $file) {
             /** @var SplFileInfo $file */
             $path = $file->getPathname();
             @unlink($path);

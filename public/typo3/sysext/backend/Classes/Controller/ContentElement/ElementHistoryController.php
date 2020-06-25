@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller\ContentElement;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Controller\ContentElement;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Controller\ContentElement;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -150,7 +151,6 @@ class ElementHistoryController
             }
         }
 
-        $this->view->assign('TYPO3_REQUEST_URI', $normalizedParams->getRequestUrl());
         $this->view->assign('editLock', $this->editLock);
 
         // Setting up the buttons and markers for docheader
@@ -220,6 +220,7 @@ class ElementHistoryController
      */
     protected function prepareDisplaySettings(ServerRequestInterface $request)
     {
+        $selector = [];
         // Get current selection from UC, merge data, write it back to UC
         $currentSelection = is_array($this->getBackendUser()->uc['moduleData']['history'])
             ? $this->getBackendUser()->uc['moduleData']['history']
@@ -273,7 +274,7 @@ class ElementHistoryController
 
         foreach ($selector as $key => $values) {
             foreach ($values as $singleKey => $singleVal) {
-                $selector[$key][$singleKey]['scriptUrl'] = htmlspecialchars(GeneralUtility::quoteJSvalue($scriptUrl . '&settings[' . $key . ']=' . $singleKey));
+                $selector[$key][$singleKey]['scriptUrl'] = $scriptUrl . '&settings[' . $key . ']=' . $singleKey;
             }
         }
         $this->view->assign('settings', $selector);
@@ -386,7 +387,7 @@ class ElementHistoryController
     }
 
     /**
-     * Renders HTML table-rows with the comparison information of an sys_history entry record
+     * Renders HTML table-rows with the comparison information of a sys_history entry record
      *
      * @param array $entry sys_history entry record.
      * @param string $table The table name

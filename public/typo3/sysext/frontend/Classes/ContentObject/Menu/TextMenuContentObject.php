@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject\Menu;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -119,7 +120,7 @@ class TextMenuContentObject extends AbstractMenuContentObject
             }
             if ($this->I['val']['stdWrap2'] || isset($this->I['val']['stdWrap2.'])) {
                 $stdWrap2 = isset($this->I['val']['stdWrap2.']) ? $this->WMcObj->stdWrap('|', $this->I['val']['stdWrap2.']) : '|';
-                $wrapPartsStdWrap = explode($this->I['val']['stdWrap2'] ? $this->I['val']['stdWrap2'] : '|', $stdWrap2);
+                $wrapPartsStdWrap = explode($this->I['val']['stdWrap2'] ?: '|', $stdWrap2);
             } else {
                 $wrapPartsStdWrap = ['', ''];
             }

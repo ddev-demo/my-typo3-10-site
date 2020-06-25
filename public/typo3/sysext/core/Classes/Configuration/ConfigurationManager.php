@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Configuration;
 
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\Random;
@@ -371,10 +372,10 @@ class ConfigurationManager
         $configuration = ArrayUtility::sortByKeyRecursive($configuration);
         $result = GeneralUtility::writeFile(
             $localConfigurationFile,
-            '<?php' . LF .
+            "<?php\n" .
                 'return ' .
                     ArrayUtility::arrayExport($configuration) .
-                ';' . LF,
+                ";\n",
             true
         );
 
@@ -395,8 +396,7 @@ class ConfigurationManager
     {
         return GeneralUtility::writeFile(
             $this->getAdditionalConfigurationFileLocation(),
-            '<?php' . LF .
-                implode(LF, $additionalConfigurationLines) . LF
+            "<?php\n" . implode("\n", $additionalConfigurationLines) . "\n"
         );
     }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,15 @@ namespace TYPO3\CMS\Core\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Utility;
+
 /**
  * Class with helper functions for CSV handling
  */
 class CsvUtility
 {
     /**
-     * Convert a string, formatted as CSV, into an multidimensional array
+     * Convert a string, formatted as CSV, into a multidimensional array
      *
      * This cannot be done by str_getcsv, since it's impossible to handle enclosed cells with a line feed in it
      *

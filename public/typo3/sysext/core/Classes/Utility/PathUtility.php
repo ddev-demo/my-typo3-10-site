@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Utility;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Utility;
 
 use TYPO3\CMS\Core\Core\Environment;
 
@@ -108,7 +109,7 @@ class PathUtility
      */
     public static function getCommonPrefix(array $paths)
     {
-        $paths = array_map([\TYPO3\CMS\Core\Utility\GeneralUtility::class, 'fixWindowsFilePath'], $paths);
+        $paths = array_map([GeneralUtility::class, 'fixWindowsFilePath'], $paths);
         $commonPath = null;
         if (count($paths) === 1) {
             $commonPath = array_shift($paths);
@@ -311,7 +312,7 @@ class PathUtility
         // @todo do we really need this? Probably only in testing context for vfs?
         $protocol = '';
         if (strpos($path, '://') !== false) {
-            list($protocol, $path) = explode('://', $path);
+            [$protocol, $path] = explode('://', $path);
             $protocol .= '://';
         }
 
@@ -344,7 +345,7 @@ class PathUtility
             // ".." in path:
             if (($theDirParts[$partCount] ?? '') === '..') {
                 if ($partCount >= 1) {
-                    // Rremove this and previous element
+                    // Remove this and previous element
                     array_splice($theDirParts, $partCount - 1, 2);
                     $partCount -= 2;
                     $theDirPartsCount -= 2;

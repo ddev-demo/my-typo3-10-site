@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Install\Middleware;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,18 +15,22 @@ namespace TYPO3\CMS\Install\Middleware;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Middleware;
+
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
+use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\JsonResponse;
+use TYPO3\CMS\Core\Http\Security\ReferrerEnforcer;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Package\FailsafePackageManager;
@@ -110,18 +114,28 @@ class Maintenance implements MiddlewareInterface
 
         $controllerName = $request->getQueryParams()['install']['controller'] ?? 'layout';
         $actionName = $request->getParsedBody()['install']['action'] ?? $request->getQueryParams()['install']['action'] ?? 'init';
+
+        if ($actionName === 'showEnableInstallToolFile' && EnableFileService::isInstallToolEnableFilePermanent()) {
+            $actionName = 'showLogin';
+        }
+
         $action = $actionName . 'Action';
 
         $session = $this->initializeSession();
-        if ($actionName === 'init') {
-            $controller = new LayoutController();
+        if ($actionName === 'preAccessCheck') {
+            $response = new JsonResponse([
+                'installToolLocked' => !$this->checkEnableInstallToolFile(),
+                'isAuthorized' => $session->isAuthorized()
+            ]);
+        } elseif ($actionName === 'init') {
+            $controller = $this->container->get(LayoutController::class);
             $response = $controller->initAction($request);
         } elseif ($actionName === 'checkEnableInstallToolFile') {
             $response = new JsonResponse([
                 'success' => $this->checkEnableInstallToolFile(),
             ]);
         } elseif ($actionName === 'showEnableInstallToolFile') {
-            $controller = new LoginController();
+            $controller = $this->container->get(LoginController::class);
             $response = $controller->showEnableInstallToolFileAction($request);
         } elseif ($actionName === 'checkLogin') {
             if (!$this->checkEnableInstallToolFile() && !$session->isAuthorizedBackendUserSession()) {
@@ -144,7 +158,7 @@ class Maintenance implements MiddlewareInterface
             if (!$this->checkEnableInstallToolFile()) {
                 throw new \RuntimeException('Not authorized', 1505564888);
             }
-            $controller = new LoginController();
+            $controller = $this->container->get(LoginController::class);
             $response = $controller->showLoginAction($request);
         } elseif ($actionName === 'login') {
             if (!$this->checkEnableInstallToolFile()) {
@@ -154,7 +168,7 @@ class Maintenance implements MiddlewareInterface
             $this->checkSessionLifetime($session);
             $password = $request->getParsedBody()['install']['password'] ?? null;
             $authService = new AuthenticationService($session);
-            if ($authService->loginWithPassword($password)) {
+            if ($authService->loginWithPassword($password, $request)) {
                 $response = new JsonResponse([
                     'success' => true,
                 ]);
@@ -192,6 +206,10 @@ class Maintenance implements MiddlewareInterface
                 'success' => true,
             ]);
         } else {
+            $enforceReferrerResponse = $this->enforceReferrer($request);
+            if ($enforceReferrerResponse instanceof ResponseInterface) {
+                return $enforceReferrerResponse;
+            }
             if (
                 !$this->checkSessionToken($request, $session)
                 || !$this->checkSessionLifetime($session)
@@ -209,7 +227,7 @@ class Maintenance implements MiddlewareInterface
             $this->recreatePackageStatesFileIfMissing();
             $className = $this->controllers[$controllerName];
             /** @var AbstractController $controller */
-            $controller = $this->container->has($className) ? $this->container->get($className) : new $className;
+            $controller = $this->container->get($className);
             if (!method_exists($controller, $action)) {
                 throw new \RuntimeException(
                     'Unknown action method ' . $action . ' in controller ' . $controllerName,
@@ -348,5 +366,24 @@ class Maintenance implements MiddlewareInterface
             }
             $this->packageManager->forceSortAndSavePackageStates();
         }
+    }
+
+    /**
+     * Evaluates HTTP `Referer` header (which is denied by client to be a custom
+     * value) - attempts to ensure the value is given using a HTML client refresh.
+     * see: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referer
+     *
+     * @param ServerRequestInterface $request
+     * @return ResponseInterface|null
+     */
+    protected function enforceReferrer(ServerRequestInterface $request): ?ResponseInterface
+    {
+        if (!(new Features())->isFeatureEnabled('security.backend.enforceReferrer')) {
+            return null;
+        }
+        return (new ReferrerEnforcer($request))->handle([
+            'flags' => ['refresh-always'],
+            'subject' => 'Install Tool',
+        ]);
     }
 }

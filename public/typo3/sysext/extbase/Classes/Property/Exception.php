@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Extbase\Property;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,10 +15,12 @@ namespace TYPO3\CMS\Extbase\Property;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Property;
+
 use TYPO3\CMS\Extbase\Exception as ExtbaseException;
 
 /**
- * An generic Property related exception
+ * A generic Property related exception
  */
 class Exception extends ExtbaseException
 {

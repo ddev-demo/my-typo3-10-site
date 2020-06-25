@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Page;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Page;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Page;
+
 use TYPO3\CMS\Backend\Routing\Router;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Cache\CacheManager;
@@ -26,6 +27,7 @@ use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Resource\ResourceCompressor;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
 
@@ -382,7 +384,6 @@ class PageRenderer implements SingletonInterface
         $this->cssFiles = [];
         $this->cssInline = [];
         $this->metaTags = [];
-        $this->metaTagsByAPI = [];
         $this->inlineComments = [];
         $this->headerData = [];
         $this->footerData = [];
@@ -1018,8 +1019,9 @@ class PageRenderer implements SingletonInterface
      * @param string $integrity Subresource Integrity (SRI)
      * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
      * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsLibrary($name, $file, $type = '', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '')
+    public function addJsLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
         if (!in_array(strtolower($name), $this->jsLibs)) {
             $this->jsLibs[strtolower($name)] = [
@@ -1035,6 +1037,7 @@ class PageRenderer implements SingletonInterface
                 'integrity' => $integrity,
                 'defer' => $defer,
                 'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1054,8 +1057,9 @@ class PageRenderer implements SingletonInterface
      * @param string $integrity Subresource Integrity (SRI)
      * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
      * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFooterLibrary($name, $file, $type = '', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '')
+    public function addJsFooterLibrary($name, $file, $type = 'text/javascript', $compress = false, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
         $name .= '_jsFooterLibrary';
         if (!in_array(strtolower($name), $this->jsLibs)) {
@@ -1072,6 +1076,7 @@ class PageRenderer implements SingletonInterface
                 'integrity' => $integrity,
                 'defer' => $defer,
                 'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1090,8 +1095,9 @@ class PageRenderer implements SingletonInterface
      * @param string $integrity Subresource Integrity (SRI)
      * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
      * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFile($file, $type = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '')
+    public function addJsFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
         if (!isset($this->jsFiles[$file])) {
             $this->jsFiles[$file] = [
@@ -1107,6 +1113,7 @@ class PageRenderer implements SingletonInterface
                 'integrity' => $integrity,
                 'defer' => $defer,
                 'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1125,8 +1132,9 @@ class PageRenderer implements SingletonInterface
      * @param string $integrity Subresource Integrity (SRI)
      * @param bool $defer Flag if property 'defer="defer"' should be added to JavaScript tags
      * @param string $crossorigin CORS settings attribute
+     * @param bool $nomodule Flag if property 'nomodule="nomodule"' should be added to JavaScript tags
      */
-    public function addJsFooterFile($file, $type = '', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '')
+    public function addJsFooterFile($file, $type = 'text/javascript', $compress = true, $forceOnTop = false, $allWrap = '', $excludeFromConcatenation = false, $splitChar = '|', $async = false, $integrity = '', $defer = false, $crossorigin = '', $nomodule = false)
     {
         if (!isset($this->jsFiles[$file])) {
             $this->jsFiles[$file] = [
@@ -1142,6 +1150,7 @@ class PageRenderer implements SingletonInterface
                 'integrity' => $integrity,
                 'defer' => $defer,
                 'crossorigin' => $crossorigin,
+                'nomodule' => $nomodule,
             ];
         }
     }
@@ -1283,7 +1292,7 @@ class PageRenderer implements SingletonInterface
         }
 
         $packages = GeneralUtility::makeInstance(PackageManager::class)->getActivePackages();
-        $isDevelopment = GeneralUtility::getApplicationContext()->isDevelopment();
+        $isDevelopment = Environment::getContext()->isDevelopment();
         $cacheIdentifier = 'requireJS_' . md5(implode(',', array_keys($packages)) . ($isDevelopment ? ':dev' : '') . GeneralUtility::getIndpEnv('TYPO3_REQUEST_SCRIPT'));
         /** @var FrontendInterface $cache */
         $cache = static::$cache ?? GeneralUtility::makeInstance(CacheManager::class)->getCache('assets');
@@ -1323,7 +1332,6 @@ class PageRenderer implements SingletonInterface
         $requireJsConfig['public']['paths'] = [
             'jquery' => $corePath . '/jquery/jquery',
             'jquery-ui' => $corePath . 'jquery-ui',
-            'datatables' => $corePath . 'jquery.dataTables',
             'nprogress' => $corePath . 'nprogress',
             'moment' => $corePath . 'moment',
             'cropper' => $corePath . 'cropper.min',
@@ -1332,11 +1340,15 @@ class PageRenderer implements SingletonInterface
             'twbs/bootstrap-datetimepicker' => $corePath . 'bootstrap-datetimepicker',
             'autosize' => $corePath . 'autosize',
             'taboverride' => $corePath . 'taboverride.min',
-            'twbs/bootstrap-slider' => $corePath . 'bootstrap-slider.min',
             'jquery/autocomplete' => $corePath . 'jquery.autocomplete',
             'd3' => $corePath . 'd3/d3',
             'Sortable' => $corePath . 'Sortable.min',
+            'tablesort' => $corePath . 'tablesort',
+            'tablesort.dotsep' => $corePath . 'tablesort.dotsep',
             'broadcastchannel' => $corePath . '/broadcastchannel-polyfill',
+        ];
+        $requireJsConfig['public']['shim'] = [
+            'tablesort.dotsep' => ['deps' => ['tablesort']],
         ];
         $requireJsConfig['public']['waitSeconds'] = 30;
         $requireJsConfig['public']['typo3BaseUrl'] = false;
@@ -1404,7 +1416,7 @@ class PageRenderer implements SingletonInterface
             // Load RequireJS in backend context at first. Doing this in FE could break the output
             $this->loadRequireJs();
         }
-        \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($this->requireJsConfig, $configuration);
+        $this->requireJsConfig = array_merge_recursive($this->requireJsConfig, $configuration);
     }
 
     /**
@@ -1646,7 +1658,7 @@ class PageRenderer implements SingletonInterface
     public function render($part = self::PART_COMPLETE)
     {
         $this->prepareRendering();
-        list($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs) = $this->renderJavaScriptAndCss();
+        [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs] = $this->renderJavaScriptAndCss();
         $metaTags = implode(LF, array_merge($this->metaTags, $this->renderMetaTagsFromAPI()));
         $markerArray = $this->getPreparedMarkerArray($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs, $metaTags);
         $template = $this->getTemplateForPart($part);
@@ -1681,7 +1693,7 @@ class PageRenderer implements SingletonInterface
     /**
      * Render the page but not the JavaScript and CSS Files
      *
-     * @param string $substituteHash The hash that is used for the placehoder markers
+     * @param string $substituteHash The hash that is used for the placeholder markers
      * @internal
      * @return string Content of rendered section
      */
@@ -1706,7 +1718,7 @@ class PageRenderer implements SingletonInterface
     public function renderJavaScriptAndCssForProcessingOfUncachedContentObjects($cachedPageContent, $substituteHash)
     {
         $this->prepareRendering();
-        list($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs) = $this->renderJavaScriptAndCss();
+        [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs] = $this->renderJavaScriptAndCss();
         $title = $this->title ? str_replace('|', htmlspecialchars($this->title), $this->titleTag) : '';
         $markerArray = [
             '<!-- ###TITLE' . $substituteHash . '### -->' => $title,
@@ -1768,9 +1780,9 @@ class PageRenderer implements SingletonInterface
         $cssLibs = $this->renderCssLibraries();
         $cssFiles = $this->renderCssFiles();
         $cssInline = $this->renderCssInline();
-        list($jsLibs, $jsFooterLibs) = $this->renderAdditionalJavaScriptLibraries();
-        list($jsFiles, $jsFooterFiles) = $this->renderJavaScriptFiles();
-        list($jsInline, $jsFooterInline) = $this->renderInlineJavaScript();
+        [$jsLibs, $jsFooterLibs] = $this->renderAdditionalJavaScriptLibraries();
+        [$jsFiles, $jsFooterFiles] = $this->renderJavaScriptFiles();
+        [$jsInline, $jsFooterInline] = $this->renderInlineJavaScript();
         $jsLibs = $mainJsLibs . $jsLibs;
         if ($this->moveJsFromHeaderToFooter) {
             $jsFooterLibs = $jsLibs . LF . $jsFooterLibs;
@@ -1780,6 +1792,18 @@ class PageRenderer implements SingletonInterface
             $jsFooterInline = $jsInline . LF . $jsFooterInline;
             $jsInline = '';
         }
+        // Use AssetRenderer to inject all JavaScripts and CSS files
+        $assetRenderer = GeneralUtility::makeInstance(AssetRenderer::class);
+        $jsInline .= $assetRenderer->renderInlineJavaScript(true);
+        $jsFooterInline .= $assetRenderer->renderInlineJavaScript();
+        $jsFiles .= $assetRenderer->renderJavaScript(true);
+        $jsFooterFiles .= $assetRenderer->renderJavaScript();
+        $cssInline .= $assetRenderer->renderInlineStyleSheets(true);
+        // append inline CSS to footer (as there is no cssFooterInline)
+        $jsFooterFiles .= $assetRenderer->renderInlineStyleSheets();
+        $cssLibs .= $assetRenderer->renderStyleSheets(true, $this->endingSlash);
+        $cssFiles .= $assetRenderer->renderStyleSheets(false, $this->endingSlash);
+
         $this->executePostRenderHook($jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs);
         return [$jsLibs, $jsFiles, $jsFooterFiles, $cssLibs, $cssFiles, $jsInline, $cssInline, $jsFooterInline, $jsFooterLibs];
     }
@@ -1831,7 +1855,7 @@ class PageRenderer implements SingletonInterface
     /**
      * Fills the marker array with the given strings and trims each value
      *
-     * @param string $substituteHash The hash that is used for the placehoder markers
+     * @param string $substituteHash The hash that is used for the placeholder markers
      * @return array Marker array
      */
     protected function getPreparedMarkerArrayForPageWithUncachedObjects($substituteHash)
@@ -2103,7 +2127,7 @@ class PageRenderer implements SingletonInterface
     }
 
     /**
-     * Render JavaScipt libraries
+     * Render JavaScript libraries
      *
      * @return array|string[] jsLibs and jsFooterLibs strings
      */
@@ -2116,9 +2140,10 @@ class PageRenderer implements SingletonInterface
                 $properties['file'] = $this->getStreamlinedFileName($properties['file']);
                 $async = $properties['async'] ? ' async="async"' : '';
                 $defer = $properties['defer'] ? ' defer="defer"' : '';
+                $nomodule = $properties['nomodule'] ? ' nomodule="nomodule"' : '';
                 $integrity = $properties['integrity'] ? ' integrity="' . htmlspecialchars($properties['integrity']) . '"' : '';
                 $crossorigin = $properties['crossorigin'] ? ' crossorigin="' . htmlspecialchars($properties['crossorigin']) . '"' : '';
-                $tag = '<script src="' . htmlspecialchars($properties['file']) . '" type="' . htmlspecialchars($properties['type']) . '"' . $async . $defer . $integrity . $crossorigin . '></script>';
+                $tag = '<script src="' . htmlspecialchars($properties['file']) . '" type="' . htmlspecialchars($properties['type']) . '"' . $async . $defer . $integrity . $crossorigin . $nomodule . '></script>';
                 if ($properties['allWrap']) {
                     $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
                     $tag = $wrapArr[0] . $tag . $wrapArr[1];
@@ -2161,9 +2186,10 @@ class PageRenderer implements SingletonInterface
                 $type = $properties['type'] ? ' type="' . htmlspecialchars($properties['type']) . '"' : '';
                 $async = $properties['async'] ? ' async="async"' : '';
                 $defer = $properties['defer'] ? ' defer="defer"' : '';
+                $nomodule = $properties['nomodule'] ? ' nomodule="nomodule"' : '';
                 $integrity = $properties['integrity'] ? ' integrity="' . htmlspecialchars($properties['integrity']) . '"' : '';
                 $crossorigin = $properties['crossorigin'] ? ' crossorigin="' . htmlspecialchars($properties['crossorigin']) . '"' : '';
-                $tag = '<script src="' . htmlspecialchars($file) . '"' . $type . $async . $defer . $integrity . $crossorigin . '></script>';
+                $tag = '<script src="' . htmlspecialchars($file) . '"' . $type . $async . $defer . $integrity . $crossorigin . $nomodule . '></script>';
                 if ($properties['allWrap']) {
                     $wrapArr = explode($properties['splitChar'] ?: '|', $properties['allWrap'], 2);
                     $tag = $wrapArr[0] . $tag . $wrapArr[1];
@@ -2298,7 +2324,7 @@ class PageRenderer implements SingletonInterface
             if ($this->lang !== 'default' && isset($tempLL[$language])) {
                 // Merge current language labels onto labels from previous language
                 // This way we have a labels with fall back applied
-                \TYPO3\CMS\Core\Utility\ArrayUtility::mergeRecursiveWithOverrule($localLanguage[$this->lang], $tempLL[$language], true, false);
+                ArrayUtility::mergeRecursiveWithOverrule($localLanguage[$this->lang], $tempLL[$language], true, false);
             }
         }
 
@@ -2626,7 +2652,7 @@ class PageRenderer implements SingletonInterface
     }
 
     /**
-     * Creates an CSS inline tag
+     * Creates a CSS inline tag
      *
      * @param string $file the filename to process
      * @param array $properties

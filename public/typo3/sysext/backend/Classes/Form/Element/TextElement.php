@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -129,7 +130,7 @@ class TextElement extends AbstractFormElement
 
         // @todo: The whole eval handling is a mess and needs refactoring
         foreach ($evalList as $func) {
-            // @todo: This is ugly: The code should find out on it's own whether a eval definition is a
+            // @todo: This is ugly: The code should find out on it's own whether an eval definition is a
             // @todo: keyword like "date", or a class reference. The global registration could be dropped then
             // Pair hook to the one in \TYPO3\CMS\Core\DataHandling\DataHandler::checkValue_input_Eval()
             // There is a similar hook for "evaluateFieldValue" in DataHandler and InputTextElement

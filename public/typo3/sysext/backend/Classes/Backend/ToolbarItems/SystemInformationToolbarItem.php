@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,20 +13,22 @@ namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Backend\ToolbarItems;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Backend\Backend\Event\SystemInformationToolbarCollectorEvent;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Toolbar\Enumeration\InformationStatus;
 use TYPO3\CMS\Backend\Toolbar\ToolbarItemInterface;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Core\SystemEnvironmentBuilder;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
+use TYPO3\CMS\Core\Routing\RouteNotFoundException;
 use TYPO3\CMS\Core\Utility\CommandUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
-use TYPO3\CMS\Core\Utility\VersionNumberUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
@@ -67,9 +68,9 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected $systemMessages = [];
 
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
 
     /**
      * @var int
@@ -77,10 +78,14 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected $maximumCountInBadge = 99;
 
     /**
-     * Constructor
+     * @var Typo3Version
      */
-    public function __construct()
+    protected $typo3Version;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher = null)
     {
+        $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::getContainer()->get(EventDispatcherInterface::class);
+        $this->typo3Version = GeneralUtility::makeInstance(Typo3Version::class);
         $this->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/Toolbar/SystemInformationMenu');
         $this->highestSeverity = InformationStatus::cast(InformationStatus::STATUS_INFO);
     }
@@ -169,8 +174,15 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
 
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $view = $this->getFluidTemplateObject('SystemInformationDropDown.html');
+
+        try {
+            $environmentToolUrl = (string)$uriBuilder->buildUriFromRoute('tools_toolsenvironment');
+        } catch (RouteNotFoundException $e) {
+            $environmentToolUrl = '';
+        }
+
         $view->assignMultiple([
-            'environmentToolUrl' => (string)$uriBuilder->buildUriFromRoute('tools_toolsenvironment'),
+            'environmentToolUrl' => $environmentToolUrl,
             'messages' => $this->systemMessages,
             'count' => $this->totalCount > $this->maximumCountInBadge ? $this->maximumCountInBadge . '+' : $this->totalCount,
             'severityBadgeClass' => $this->severityBadgeClass,
@@ -223,8 +235,7 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
         $this->getGitRevision();
         $this->getOperatingSystem();
 
-        $this->emitGetSystemInformation();
-        $this->emitLoadMessages();
+        $this->eventDispatcher->dispatch(new SystemInformationToolbarCollectorEvent($this));
 
         $this->severityBadgeClass = !$this->highestSeverity->equals(InformationStatus::STATUS_NOTICE) ? 'badge-' . (string)$this->highestSeverity : '';
     }
@@ -236,7 +247,7 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     {
         $this->systemInformation[] = [
             'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.typo3-version',
-            'value' => VersionNumberUtility::getCurrentTypo3Version(),
+            'value' => $this->typo3Version->getVersion(),
             'iconIdentifier' => 'information-typo3-version'
         ];
     }
@@ -271,12 +282,20 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected function getDatabase()
     {
         foreach (GeneralUtility::makeInstance(ConnectionPool::class)->getConnectionNames() as $connectionName) {
+            $serverVersion = '[' . $this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.database.offline') . ']';
+            $success = true;
+            try {
+                $serverVersion = GeneralUtility::makeInstance(ConnectionPool::class)
+                    ->getConnectionByName($connectionName)
+                    ->getServerVersion();
+            } catch (\Exception $exception) {
+                $success = false;
+            }
             $this->systemInformation[] = [
                 'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.database',
                 'titleAddition' => $connectionName,
-                'value' => GeneralUtility::makeInstance(ConnectionPool::class)
-                    ->getConnectionByName($connectionName)
-                    ->getServerVersion(),
+                'value' => $serverVersion,
+                'status' => $success ?: InformationStatus::STATUS_WARNING,
                 'iconIdentifier' => 'information-database'
             ];
         }
@@ -287,7 +306,7 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
      */
     protected function getApplicationContext()
     {
-        $applicationContext = GeneralUtility::getApplicationContext();
+        $applicationContext = Environment::getContext();
         $this->systemInformation[] = [
             'title'  => 'LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:toolbarItems.sysinfo.applicationcontext',
             'value'  => (string)$applicationContext,
@@ -317,7 +336,7 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
      */
     protected function getGitRevision()
     {
-        if (!StringUtility::endsWith(TYPO3_version, '-dev') || SystemEnvironmentBuilder::isFunctionDisabled('exec')) {
+        if (!StringUtility::endsWith($this->typo3Version->getVersion(), '-dev') || $this->isFunctionDisabled('exec')) {
             return;
         }
         // check if git exists
@@ -364,22 +383,6 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     }
 
     /**
-     * Emits the "getSystemInformation" signal
-     */
-    protected function emitGetSystemInformation()
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'getSystemInformation', [$this]);
-    }
-
-    /**
-     * Emits the "loadMessages" signal
-     */
-    protected function emitLoadMessages()
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, 'loadMessages', [$this]);
-    }
-
-    /**
      * Returns a new standalone view, shorthand function
      *
      * @param string $filename Which templateFile should be used.
@@ -396,6 +399,21 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
 
         $view->getRequest()->setControllerExtensionName('Backend');
         return $view;
+    }
+
+    /**
+     * Check if the given PHP function is disabled in the system
+     *
+     * @param string $functionName
+     * @return bool
+     */
+    protected function isFunctionDisabled(string $functionName): bool
+    {
+        $disabledFunctions = GeneralUtility::trimExplode(',', ini_get('disable_functions'));
+        if (!empty($disabledFunctions)) {
+            return in_array($functionName, $disabledFunctions, true);
+        }
+        return false;
     }
 
     /**
@@ -424,18 +442,5 @@ class SystemInformationToolbarItem implements ToolbarItemInterface
     protected function getPageRenderer()
     {
         return GeneralUtility::makeInstance(PageRenderer::class);
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
     }
 }

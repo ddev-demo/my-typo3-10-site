@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,22 @@ namespace TYPO3\CMS\Extensionmanager\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Controller;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Package\Exception;
+use TYPO3\CMS\Core\Package\Exception\PackageStatesFileNotWritableException;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
+use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
+use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+use TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService;
+use TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility;
+use TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility;
+use TYPO3\CMS\Extensionmanager\Utility\InstallUtility;
 
 /**
  * Controller for handling extension related actions like
@@ -25,53 +38,53 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 class ActionController extends AbstractController
 {
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\InstallUtility
+     * @var InstallUtility
      */
     protected $installUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility
+     * @var FileHandlingUtility
      */
     protected $fileHandlingUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility
+     * @var ExtensionModelUtility
      */
     protected $extensionModelUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService
+     * @var ExtensionManagementService
      */
     protected $managementService;
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\InstallUtility $installUtility
+     * @param InstallUtility $installUtility
      */
-    public function injectInstallUtility(\TYPO3\CMS\Extensionmanager\Utility\InstallUtility $installUtility)
+    public function injectInstallUtility(InstallUtility $installUtility)
     {
         $this->installUtility = $installUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility $fileHandlingUtility
+     * @param FileHandlingUtility $fileHandlingUtility
      */
-    public function injectFileHandlingUtility(\TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility $fileHandlingUtility)
+    public function injectFileHandlingUtility(FileHandlingUtility $fileHandlingUtility)
     {
         $this->fileHandlingUtility = $fileHandlingUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility $extensionModelUtility
+     * @param ExtensionModelUtility $extensionModelUtility
      */
-    public function injectExtensionModelUtility(\TYPO3\CMS\Extensionmanager\Utility\ExtensionModelUtility $extensionModelUtility)
+    public function injectExtensionModelUtility(ExtensionModelUtility $extensionModelUtility)
     {
         $this->extensionModelUtility = $extensionModelUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService $managementService
+     * @param ExtensionManagementService $managementService
      */
-    public function injectManagementService(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService $managementService)
+    public function injectManagementService(ExtensionManagementService $managementService)
     {
         $this->managementService = $managementService;
     }
@@ -83,7 +96,7 @@ class ActionController extends AbstractController
      */
     protected function toggleExtensionInstallationStateAction($extensionKey)
     {
-        $installedExtensions = \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::getLoadedExtensionListArray();
+        $installedExtensions = ExtensionManagementUtility::getLoadedExtensionListArray();
         try {
             if (in_array($extensionKey, $installedExtensions)) {
                 // uninstall
@@ -97,10 +110,8 @@ class ActionController extends AbstractController
                     $this->redirect('unresolvedDependencies', 'List', null, ['extensionKey' => $extensionKey]);
                 }
             }
-        } catch (\TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException $e) {
-            $this->addFlashMessage($e->getMessage(), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
-        } catch (\TYPO3\CMS\Core\Package\Exception\PackageStatesFileNotWritableException $e) {
-            $this->addFlashMessage($e->getMessage(), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
+        } catch (ExtensionManagerException|PackageStatesFileNotWritableException $e) {
+            $this->addFlashMessage($e->getMessage(), '', FlashMessage::ERROR);
         }
         $this->redirect('index', 'List', null, [
             self::TRIGGER_RefreshModuleMenu => true,
@@ -128,9 +139,16 @@ class ActionController extends AbstractController
     protected function removeExtensionAction($extension)
     {
         try {
+            if (Environment::isComposerMode()) {
+                throw new ExtensionManagerException(
+                    'The system is set to composer mode. You are not allowed to remove any extension.',
+                    1590314046
+                );
+            }
+
             $this->installUtility->removeExtension($extension);
             $this->addFlashMessage(
-                \TYPO3\CMS\Extbase\Utility\LocalizationUtility::translate(
+                LocalizationUtility::translate(
                     'extensionList.remove.message',
                     'extensionmanager',
                     [
@@ -138,10 +156,8 @@ class ActionController extends AbstractController
                     ]
                 )
             );
-        } catch (\TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException $e) {
-            $this->addFlashMessage($e->getMessage(), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
-        } catch (\TYPO3\CMS\Core\Package\Exception $e) {
-            $this->addFlashMessage($e->getMessage(), '', \TYPO3\CMS\Core\Messaging\FlashMessage::ERROR);
+        } catch (ExtensionManagerException|Exception $e) {
+            $this->addFlashMessage($e->getMessage(), '', FlashMessage::ERROR);
         }
 
         return '';
@@ -155,7 +171,22 @@ class ActionController extends AbstractController
     protected function downloadExtensionZipAction($extension)
     {
         $fileName = $this->fileHandlingUtility->createZipFileFromExtension($extension);
-        $this->fileHandlingUtility->sendZipFileToBrowserAndDelete($fileName);
+        $this->sendZipFileToBrowserAndDelete($fileName);
+    }
+
+    /**
+     * Sends a zip file to the browser and deletes it afterwards
+     *
+     * @param string $fileName
+     */
+    protected function sendZipFileToBrowserAndDelete(string $fileName): void
+    {
+        header('Content-Type: application/zip');
+        header('Content-Length: ' . filesize($fileName));
+        header('Content-Disposition: attachment; filename="' . PathUtility::basename($fileName) . '"');
+        readfile($fileName);
+        unlink($fileName);
+        die;
     }
 
     /**

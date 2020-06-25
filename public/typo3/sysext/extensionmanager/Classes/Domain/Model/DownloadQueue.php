@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Domain\Model;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,16 @@ namespace TYPO3\CMS\Extensionmanager\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Domain\Model;
+
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
 
 /**
  * Download Queue - storage for extensions to be downloaded
  * @internal This class is a specific domain model implementation and is not part of the Public TYPO3 API.
  */
-class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
+class DownloadQueue implements SingletonInterface
 {
     /**
      * Storage for extensions to be downloaded
@@ -44,28 +46,15 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     protected $extensionCopyStorage = [];
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\ListUtility
-     */
-    protected $listUtility;
-
-    /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility
-     */
-    public function injectListUtility(\TYPO3\CMS\Extensionmanager\Utility\ListUtility $listUtility)
-    {
-        $this->listUtility = $listUtility;
-    }
-
-    /**
      * Adds an extension to the download queue.
      * If the extension was already requested in a different version
      * an exception is thrown.
      *
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension
+     * @param Extension $extension
      * @param string $stack
-     * @throws \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException
+     * @throws ExtensionManagerException
      */
-    public function addExtensionToQueue(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension, $stack = 'download')
+    public function addExtensionToQueue(Extension $extension, $stack = 'download')
     {
         if (!is_string($stack) || !in_array($stack, ['download', 'update'])) {
             throw new ExtensionManagerException('Stack has to be either "download" or "update"', 1342432103);
@@ -96,11 +85,11 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Remove an extension from download queue
      *
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension
+     * @param Extension $extension
      * @param string $stack Stack to remove extension from (download, update or install)
-     * @throws \TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException
+     * @throws ExtensionManagerException
      */
-    public function removeExtensionFromQueue(\TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension, $stack = 'download')
+    public function removeExtensionFromQueue(Extension $extension, $stack = 'download')
     {
         if (!is_string($stack) || !in_array($stack, ['download', 'update'])) {
             throw new ExtensionManagerException('Stack has to be either "download" or "update"', 1342432104);
@@ -123,18 +112,6 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     }
 
     /**
-     * Removes an extension from the install queue
-     *
-     * @param string $extensionKey
-     */
-    public function removeExtensionFromInstallQueue($extensionKey)
-    {
-        if (array_key_exists($extensionKey, $this->extensionInstallStorage)) {
-            unset($this->extensionInstallStorage[$extensionKey]);
-        }
-    }
-
-    /**
      * Adds an extension to the copy queue for later copying
      *
      * @param string $extensionKey
@@ -148,7 +125,7 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     /**
      * Remove an extension from extension copy storage
      *
-     * @param $extensionKey
+     * @param string $extensionKey
      */
     public function removeExtensionFromCopyQueue($extensionKey)
     {
@@ -165,16 +142,6 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     public function getExtensionInstallStorage()
     {
         return $this->extensionInstallStorage;
-    }
-
-    /**
-     * Gets the extension copy queue
-     *
-     * @return array
-     */
-    public function getExtensionCopyStorage()
-    {
-        return $this->extensionCopyStorage;
     }
 
     /**
@@ -196,16 +163,6 @@ class DownloadQueue implements \TYPO3\CMS\Core\SingletonInterface
     public function isCopyQueueEmpty()
     {
         return empty($this->extensionCopyStorage);
-    }
-
-    /**
-     * Return whether the install queue contains extensions or not
-     *
-     * @return bool
-     */
-    public function isInstallQueueEmpty()
-    {
-        return empty($this->extensionInstallStorage);
     }
 
     /**

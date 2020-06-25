@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Controller\ContentElement;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,15 @@ namespace TYPO3\CMS\Backend\Controller\ContentElement;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller\ContentElement;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
 use TYPO3\CMS\Backend\Tree\View\ContentMovingPagePositionMap;
 use TYPO3\CMS\Backend\Tree\View\PageMovingPagePositionMap;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\BackendLayoutView;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -123,7 +126,7 @@ class MoveElementController
         $this->table = $parsedBody['table'] ?? $queryParams['table'] ?? null;
         $this->R_URI = GeneralUtility::sanitizeLocalUrl($parsedBody['returnUrl'] ?? $queryParams['returnUrl'] ?? '');
         $this->input_moveUid = $parsedBody['moveUid'] ?? $queryParams['moveUid'] ?? null;
-        $this->moveUid = $this->input_moveUid ? $this->input_moveUid : $this->page_id;
+        $this->moveUid = $this->input_moveUid ?: $this->page_id;
         $this->makeCopy = $parsedBody['makeCopy'] ?? $queryParams['makeCopy'] ?? 0;
         // Select-pages where clause for read-access:
         $this->perms_clause = $this->getBackendUser()->getPagePermsClause(Permission::PAGE_SHOW);
@@ -199,7 +202,7 @@ class MoveElementController
                     $assigns['ttContent']['pageInfo'] = $pageInfo;
                     $assigns['ttContent']['recordTooltip'] = BackendUtility::getRecordToolTip($pageInfo, 'pages');
                     $assigns['ttContent']['recordTitle'] = BackendUtility::getRecordTitle('pages', $pageInfo, true);
-                    $colPosArray = GeneralUtility::callUserFunction(\TYPO3\CMS\Backend\View\BackendLayoutView::class . '->getColPosListItemsParsed', $this->page_id, $this);
+                    $colPosArray = GeneralUtility::callUserFunction(BackendLayoutView::class . '->getColPosListItemsParsed', $this->page_id, $this);
                     $colPosIds = [];
                     foreach ($colPosArray as $colPos) {
                         $colPosIds[] = $colPos[1];

@@ -1,18 +1,19 @@
 <?php
-namespace TYPO3\CMS\Backend\ViewHelpers;
 
-/*                                                                        *
- * This script is part of the TYPO3 project - inspiring people to share!  *
- *                                                                        *
- * TYPO3 is free software; you can redistribute it and/or modify it under *
- * the terms of the GNU General Public License version 2 as published by  *
- * the Free Software Foundation.                                          *
- *                                                                        *
- * This script is distributed in the hope that it will be useful, but     *
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHAN-    *
- * TABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General      *
- * Public License for more details.                                       *
- *                                                                        */
+/*
+ * This file is part of the TYPO3 CMS project.
+ *
+ * It is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License, either version 2
+ * of the License, or any later version.
+ *
+ * For the full copyright and license information, please read the
+ * LICENSE.txt file that was distributed with this source code.
+ *
+ * The TYPO3 project - inspiring people to share!
+ */
+
+namespace TYPO3\CMS\Backend\ViewHelpers;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\ImageManipulation\CropVariantCollection;
@@ -22,7 +23,40 @@ use TYPO3\CMS\Fluid\ViewHelpers\ImageViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\Exception;
 
 /**
- * Class ThumbnailViewHelper
+ * ViewHelper for the backend which generates an :html:`<img>` tag with the special URI to render thumbnails deferred.
+ *
+ * Examples
+ * ========
+ *
+ * Default
+ * -------
+ *
+ * ::
+ *
+ *    <be:thumbnail image="{file.resource}" maxWidth="{thumbnail.width}" maxHeight="{thumbnail.height}" />
+ *
+ * Output::
+ *
+ *    <img src="/typo3/index.php?route=/thumbnails&token=&parameters={"fileId":1,"configuration":{"_context":"Image.Preview","maxWidth":64,"maxHeight":64}}&hmac="
+ *         width="64"
+ *         height="64"
+ *         alt="alt set in image record"
+ *         title="title set in image record"/>
+ *
+ * Inline notation
+ * ---------------
+ *
+ * ::
+ *
+ *    {be:thumbnail(image: file.resource, maxWidth: thumbnail.width, maxHeight: thumbnail.height)}
+ *
+ * Output::
+ *
+ *    <img src="/typo3/index.php?route=/thumbnails&token=&parameters={"fileId":1,"configuration":{"_context":"Image.Preview","maxWidth":64,"maxHeight":64}}&hmac="
+ *         width="64"
+ *         height="64"
+ *         alt="alt set in image record"
+ *         title="title set in image record"/>
  */
 class ThumbnailViewHelper extends ImageViewHelper
 {

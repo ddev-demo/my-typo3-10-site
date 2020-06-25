@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -87,7 +89,7 @@ class ProcessedFileRepository extends AbstractRepository implements LoggerAwareI
         $originalFile = $this->factory->getFileObject((int)$databaseRow['original']);
         $originalFile->setStorage($this->factory->getStorageObject($originalFile->getProperty('storage')));
         $taskType = $databaseRow['task_type'];
-        $configuration = unserialize($databaseRow['configuration']);
+        $configuration = unserialize($databaseRow['configuration'], ['allowed_classes' => false]);
 
         return GeneralUtility::makeInstance(
             $this->objectType,
@@ -174,7 +176,8 @@ class ProcessedFileRepository extends AbstractRepository implements LoggerAwareI
 
             $connection->insert(
                 $this->table,
-                $insertFields
+                $insertFields,
+                ['configuration' => Connection::PARAM_LOB]
             );
 
             $uid = $connection->lastInsertId($this->table);
@@ -200,7 +203,8 @@ class ProcessedFileRepository extends AbstractRepository implements LoggerAwareI
                 $updateFields,
                 [
                     'uid' => (int)$uid
-                ]
+                ],
+                ['configuration' => Connection::PARAM_LOB]
             );
         }
     }

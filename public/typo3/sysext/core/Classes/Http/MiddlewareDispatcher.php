@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Http;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Http;
 
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -45,12 +47,12 @@ class MiddlewareDispatcher implements RequestHandlerInterface
 
     /**
      * @param RequestHandlerInterface $kernel
-     * @param array $middlewares
+     * @param iterable $middlewares
      * @param ContainerInterface $container
      */
     public function __construct(
         RequestHandlerInterface $kernel,
-        array $middlewares = [],
+        iterable $middlewares = [],
         ContainerInterface $container = null
     ) {
         $this->container = $container;
@@ -99,7 +101,13 @@ class MiddlewareDispatcher implements RequestHandlerInterface
     {
         $next = $this->tip;
         $this->tip = new class($middleware, $next) implements RequestHandlerInterface {
+            /**
+             * @var MiddlewareInterface
+             */
             private $middleware;
+            /**
+             * @var RequestHandlerInterface
+             */
             private $next;
 
             public function __construct(MiddlewareInterface $middleware, RequestHandlerInterface $next)
@@ -128,8 +136,19 @@ class MiddlewareDispatcher implements RequestHandlerInterface
     {
         $next = $this->tip;
         $this->tip = new class($middleware, $next, $this->container) implements RequestHandlerInterface {
+            /**
+             * @var string
+             */
             private $middleware;
+
+            /**
+             * @var RequestHandlerInterface
+             */
             private $next;
+
+            /**
+             * @var ContainerInterface|null
+             */
             private $container;
 
             public function __construct(string $middleware, RequestHandlerInterface $next, ContainerInterface $container = null)

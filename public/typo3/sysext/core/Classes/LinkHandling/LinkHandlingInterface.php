@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\LinkHandling;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\LinkHandling;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\LinkHandling;
 
 /**
  * Interface for classes which are transforming a tag link hrefs to records or resources
@@ -40,7 +42,7 @@ interface LinkHandlingInterface
     public function asString(array $parameters): string;
 
     /**
-     * Returns a array with data interpretation of the link href from parsed query parameters of urn
+     * Returns an array with data interpretation of the link href from parsed query parameters of urn
      * representation.
      *
      * array of strings -> array of data

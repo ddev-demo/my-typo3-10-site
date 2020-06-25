@@ -15,19 +15,14 @@
  * Module: TYPO3/CMS/Form/Backend/FormEditor/InspectorComponent
  */
 
-/**
- * Add legacy functions to be accessible in the global scope.
- * This is needed by TYPO3/CMS/Recordlist/ElementBrowser
- */
-var setFormValueFromBrowseWin;
-
 define(['jquery',
   'TYPO3/CMS/Form/Backend/FormEditor/Helper',
   'TYPO3/CMS/Backend/Icons',
   'TYPO3/CMS/Backend/Notification',
   'TYPO3/CMS/Backend/Modal',
+  'TYPO3/CMS/Backend/Utility/MessageUtility',
   'TYPO3/CMS/Form/Backend/Contrib/jquery.mjs.nestedSortable'
-], function($, Helper, Icons, Notification, Modal) {
+], function($, Helper, Icons, Notification, Modal, MessageUtility) {
   'use strict';
 
   return (function($, Helper, Icons, Notification) {
@@ -72,8 +67,6 @@ define(['jquery',
         formElementSelectorSplitButtonContainer: 'inspectorEditorFormElementSelectorSplitButtonContainer',
         formElementSelectorSplitButtonListContainer: 'inspectorEditorFormElementSelectorSplitButtonListContainer',
         iconNotAvailable: 'actions-close',
-        iconPage: 'apps-pagetree-page-default',
-        iconTtContent: 'mimetypes-x-content-text',
         inspector: 'inspector',
         'Inspector-CheckboxEditor': 'Inspector-CheckboxEditor',
         'Inspector-CollectionElementHeaderEditor': 'Inspector-CollectionElementHeaderEditor',
@@ -121,7 +114,7 @@ define(['jquery',
     var _formEditorApp = null;
 
     /* *************************************************************
-     * Private Methodes
+     * Private Methods
      * ************************************************************/
 
     /**
@@ -393,6 +386,34 @@ define(['jquery',
     /**
      * @private
      *
+     * Listens on messages sent by ElementBrowser
+     */
+    function _listenOnElementBrowser() {
+      window.addEventListener('message', function (e) {
+        if (!MessageUtility.MessageUtility.verifyOrigin(e.origin)) {
+          throw 'Denied message sent by ' + e.origin;
+        }
+
+        if (e.data.actionName === 'typo3:elementBrowser:elementAdded') {
+          if (typeof e.data.fieldName === 'undefined') {
+            throw 'fieldName not defined in message';
+          }
+
+          if (typeof e.data.value === 'undefined') {
+            throw 'value not defined in message';
+          }
+
+          var result = e.data.value.split('_');
+          $(getHelper().getDomElementDataAttribute('contentElementSelectorTarget', 'bracesWithKeyValue', [e.data.fieldName]))
+            .val(result.pop())
+            .trigger('paste');
+        }
+      });
+    }
+
+    /**
+     * @private
+     *
      * @param string
      * @param string
      * @return object
@@ -478,7 +499,7 @@ define(['jquery',
      * @return void
      */
     function _setPropertyGridData(editorHtml, multiSelection, propertyPath, propertyPathPrefix) {
-      var defaultValue, newPropertyData;
+      var defaultValue, newPropertyData, value;
 
       if (multiSelection) {
         defaultValue = [];
@@ -487,27 +508,33 @@ define(['jquery',
           getHelper().getDomElementDataIdentifierSelector('propertyGridEditorSelectValue') + ':checked',
           $(editorHtml)
         ).each(function(i) {
-          defaultValue.push(
-            $(this)
-              .closest(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorRowItem'))
-              .find(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorValue'))
-              .val()
-          );
+          value = $(this)
+            .closest(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorRowItem'))
+            .find(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorValue'))
+            .val();
+
+          if (getUtility().canBeInterpretedAsInteger(value)) {
+              value = parseInt(value, 10);
+          }
+
+          defaultValue.push(value);
         });
         getCurrentlySelectedFormElement().set(propertyPathPrefix + 'defaultValue', defaultValue);
       } else {
-        getCurrentlySelectedFormElement().set(
-          propertyPathPrefix + 'defaultValue',
-          $(
+        value = $(
             getHelper().getDomElementDataIdentifierSelector('propertyGridEditorContainer') + ' ' +
             getHelper().getDomElementDataIdentifierSelector('propertyGridEditorSelectValue') + ':checked',
             $(editorHtml)
           ).first()
             .closest(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorRowItem'))
             .find(getHelper().getDomElementDataIdentifierSelector('propertyGridEditorValue'))
-            .val(),
-          true
-        );
+            .val();
+
+        if (getUtility().canBeInterpretedAsInteger(value)) {
+            value = parseInt(value, 10);
+        }
+
+        getCurrentlySelectedFormElement().set(propertyPathPrefix + 'defaultValue', value, true);
       }
 
       newPropertyData = [];
@@ -748,27 +775,8 @@ define(['jquery',
     };
 
     /* *************************************************************
-     * Public Methodes
+     * Public Methods
      * ************************************************************/
-
-    /**
-     * @public
-     *
-     * callback from TYPO3/CMS/Recordlist/ElementBrowser
-     *
-     * @param string fieldReference
-     * @param string elValue
-     * @param string elName
-     * @return void
-     */
-    setFormValueFromBrowseWin = function(fieldReference, elValue, elName) {
-      var result;
-      result = elValue.split('_');
-
-      $(getHelper().getDomElementDataAttribute('contentElementSelectorTarget', 'bracesWithKeyValue', [fieldReference]))
-        .val(result.pop())
-        .trigger('paste');
-    };
 
     /**
      * @public
@@ -1111,7 +1119,7 @@ define(['jquery',
         Icons.sizes.small,
         null,
         Icons.states.default
-      ).done(function(icon) {
+      ).then(function(icon) {
         getHelper().getTemplatePropertyDomElement('header-label', editorHtml)
           .append($(icon).addClass(getHelper().getDomElementClassName('icon')))
           .append(buildTitleByFormElement());
@@ -1160,7 +1168,7 @@ define(['jquery',
           null,
           Icons.states.default,
           Icons.markupIdentifiers.inline
-        ).done(function(icon) {
+        ).then(function(icon) {
           var iconWrap;
           iconWrap = $('<a></a>')
             .attr('href', _getCollectionElementId(collectionName, collectionElementIdentifier, true))
@@ -1183,7 +1191,7 @@ define(['jquery',
           Icons.sizes.small,
           null,
           Icons.states.default
-        ).done(function(icon) {
+        ).then(function(icon) {
           setData(icon);
         });
       } else {
@@ -1192,7 +1200,7 @@ define(['jquery',
           Icons.sizes.small,
           null,
           Icons.states.default
-        ).done(function(icon) {
+        ).then(function(icon) {
           setData(icon);
         });
       }
@@ -2340,7 +2348,7 @@ define(['jquery',
      * @throws 1477319859
      */
     function renderTypo3WinBrowserEditor(editorConfiguration, editorHtml, collectionElementIdentifier, collectionName) {
-      var iconType, propertyPath, propertyData;
+      var propertyPath, propertyData;
       assert(
         'object' === $.type(editorConfiguration),
         'Invalid parameter "editorConfiguration"',
@@ -2366,11 +2374,6 @@ define(['jquery',
         'Invalid configuration "propertyPath"',
         1477300590
       );
-      assert(
-        'tt_content' === editorConfiguration['browsableType'] || 'pages' === editorConfiguration['browsableType'],
-        'Invalid configuration "browsableType"',
-        1477319859
-      );
 
       getHelper()
         .getTemplatePropertyDomElement('label', editorHtml)
@@ -2391,10 +2394,7 @@ define(['jquery',
 
       $('form', $(editorHtml)).prop('name', editorConfiguration['propertyPath']);
 
-      iconType = ('tt_content' === editorConfiguration['browsableType'])
-        ? getHelper().getDomElementDataAttributeValue('iconTtContent')
-        : getHelper().getDomElementDataAttributeValue('iconPage');
-      Icons.getIcon(iconType, Icons.sizes.small).done(function(icon) {
+      Icons.getIcon(editorConfiguration['iconIdentifier'], Icons.sizes.small).then(function(icon) {
         getHelper().getTemplatePropertyDomElement('image', editorHtml).append($(icon));
       });
 
@@ -2409,6 +2409,8 @@ define(['jquery',
         insertTarget.attr(getHelper().getDomElementDataAttribute('contentElementSelectorTarget'), randomIdentifier);
         _openTypo3WinBrowser('db', randomIdentifier + '|||' + editorConfiguration['browsableType']);
       });
+
+      _listenOnElementBrowser();
 
       propertyPath = getFormEditorApp().buildPropertyPath(editorConfiguration['propertyPath'], collectionElementIdentifier, collectionName);
       propertyData = getCurrentlySelectedFormElement().get(propertyPath);
@@ -2514,7 +2516,7 @@ define(['jquery',
             Icons.sizes.small,
             null,
             Icons.states.default
-          ).done(function(icon) {
+          ).then(function(icon) {
             itemTemplate = $('<li data-no-sorting>'
               + '<a href="#"></a>'
               + '</li>');
@@ -2531,7 +2533,7 @@ define(['jquery',
               Icons.sizes.small,
               null,
               Icons.states.default
-            ).done(function(icon) {
+            ).then(function(icon) {
               itemTemplate = $('<li data-no-sorting>'
                 + '<a href="#" data-formelement-identifier="' + nonCompositeNonToplevelFormElement.get('identifier') + '">'
                 + '</a>'

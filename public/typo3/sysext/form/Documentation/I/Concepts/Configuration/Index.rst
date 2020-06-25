@@ -60,9 +60,16 @@ module.
 .. hint::
 
    We recommend using a `site package <https://de.slideshare.net/benjaminkott/typo3-the-anatomy-of-sitepackages>`_.
-   This will make your life easier if you want to customise EXT:form
+   This will make your life easier if you want to customize EXT:form
    heavily in order to suit the customer's needs.
 
+.. tip::
+
+   For debugging purposes or for getting an overview about the available
+   configuration use the :guilabel:`SYSTEM > Configuration` module. Select in
+   the menu the :guilabel:`Form: YAML Configuration` item to display the
+   parsed YAML form setup. If the module is not available install the lowlevel
+   system extension.
 
 .. _concepts-configuration-yamlregistration-frontend:
 
@@ -77,8 +84,7 @@ frontend.
    plugin.tx_form {
        settings {
            yamlConfigurations {
-               10 = EXT:form/Configuration/Yaml/BaseSetup.yaml
-               20 = EXT:form/Configuration/Yaml/FormEngineSetup.yaml
+               10 = EXT:form/Configuration/Yaml/FormSetup.yaml
            }
        }
    }
@@ -109,9 +115,7 @@ the backend.
    module.tx_form {
        settings {
            yamlConfigurations {
-               10 = EXT:form/Configuration/Yaml/BaseSetup.yaml
-               20 = EXT:form/Configuration/Yaml/FormEditorSetup.yaml
-               30 = EXT:form/Configuration/Yaml/FormEngineSetup.yaml
+               10 = EXT:form/Configuration/Yaml/FormSetup.yaml
            }
        }
    }
@@ -283,7 +287,7 @@ register an additional configuration file via
                      20: 'EXT:my_site_package/Resources/Private/Layouts/Form/Frontend/'
 
 The values of your own configuration file will overrule the corresponding
-values of the basic configuration file (:file:`EXT:form/Configuration/Yaml/BaseSetup.yaml`).
+values of the basic configuration file (:file:`EXT:form/Configuration/Yaml/FormSetup.yaml`).
 
 
 .. _concepts-configuration-inheritances-operator:
@@ -375,22 +379,6 @@ The YAML configuration defines a new form element called ``GenderSelect``.
 This element inherits its definition from the ``RadioButton`` element but
 additionally ships four predefined options. Without any problems, the new
 element can be used and overridden within the ``form definition``.
-
-.. hint::
-
-   Currently, there is no built-in solution within the TYPO3 core to
-   preview the resulting/ final EXT:form YAML configuration. If you want
-   to check the configuration, there is a fishy way which you should never
-   implement on a production system.
-
-   Open the file ``typo3/sysext/form/Classes/Mvc/Configuration/ConfigurationManager.php::getConfigurationFromYamlFile()``
-   and add the following code before the ``return`` statement::
-
-      \TYPO3\CMS\Extbase\Utility\DebuggerUtility::var_dump($yamlSettings, 'form configuration', 9999);
-
-   Now open the ``Forms`` module in the backend or navigate to a page in
-   the frontend which contains a form. The DebuggerUtility will print the
-   final configuration directly to the screen.
 
 It will probably take some time to fully understand the awesomeness of
 this operator. If you are eager to learn more about this great instrument,

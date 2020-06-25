@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Info\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Info\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Info\Controller;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Configuration\Loader\PageTsConfigLoader;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -63,8 +65,7 @@ class InfoPageTyposcriptConfigController
     public function init($pObj)
     {
         $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
-        $languageService = $this->getLanguageService();
-        $languageService->includeLLFile('EXT:info/Resources/Private/Language/InfoPageTsConfig.xlf');
+        $this->getLanguageService()->includeLLFile('EXT:info/Resources/Private/Language/InfoPageTsConfig.xlf');
         $this->view = $this->getFluidTemplateObject();
         $this->pObj = $pObj;
         $this->id = (int)GeneralUtility::_GP('id');
@@ -90,40 +91,41 @@ class InfoPageTyposcriptConfigController
             }
         } else {
             if ($this->pObj->MOD_SETTINGS['tsconf_parts'] == 99) {
-                $TSparts = BackendUtility::getRawPagesTSconfig($this->id);
+                $rootLine = BackendUtility::BEgetRootLine($this->id, '', true);
+                $TSparts = GeneralUtility::makeInstance(PageTsConfigLoader::class)->collect($rootLine);
                 $lines = [];
                 $pUids = [];
 
                 foreach ($TSparts as $k => $v) {
-                    if ($k !== 'uid_0') {
-                        $line = [];
-                        if ($k === 'defaultPageTSconfig') {
-                            $line['defaultPageTSconfig'] = 1;
-                        } else {
-                            $editIdList = substr($k, 4);
-                            $pUids[] = $editIdList;
-                            $row = BackendUtility::getRecordWSOL('pages', $editIdList);
+                    $line = [];
+                    if ($k === 'default') {
+                        $line['defaultPageTSconfig'] = 1;
+                    } else {
+                        // Remove the "page_" prefix
+                        [, $pageId] = explode('_', $k, 3);
+                        $pageId = (int)$pageId;
+                        $pUids[] = $pageId;
+                        $row = BackendUtility::getRecordWSOL('pages', $pageId);
 
-                            $icon = $this->iconFactory->getIconForRecord('pages', $row, Icon::SIZE_SMALL);
-                            $urlParameters = [
-                                'edit' => [
-                                    'pages' => [
-                                        $editIdList => 'edit',
-                                    ]
-                                ],
-                                'columnsOnly' => 'TSconfig',
-                                'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
-                            ];
-                            $line['editIcon'] = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
-                            $line['editTitle'] = 'editTSconfig';
-                            $line['title'] = BackendUtility::wrapClickMenuOnIcon($icon, 'pages', $row['uid'])
-                                . ' ' . htmlspecialchars(BackendUtility::getRecordTitle('pages', $row));
-                        }
-                        $tsparser = GeneralUtility::makeInstance(TypoScriptParser::class);
-                        $tsparser->lineNumberOffset = 0;
-                        $line['content'] = $tsparser->doSyntaxHighlight(trim($v) . LF);
-                        $lines[] = $line;
+                        $icon = $this->iconFactory->getIconForRecord('pages', $row, Icon::SIZE_SMALL);
+                        $urlParameters = [
+                            'edit' => [
+                                'pages' => [
+                                    $pageId => 'edit',
+                                ]
+                            ],
+                            'columnsOnly' => 'TSconfig,tsconfig_includes',
+                            'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
+                        ];
+                        $line['editIcon'] = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
+                        $line['editTitle'] = 'editTSconfig';
+                        $line['title'] = BackendUtility::wrapClickMenuOnIcon($icon, 'pages', $row['uid'])
+                            . ' ' . htmlspecialchars(BackendUtility::getRecordTitle('pages', $row));
                     }
+                    $tsparser = GeneralUtility::makeInstance(TypoScriptParser::class);
+                    $tsparser->lineNumberOffset = 0;
+                    $line['content'] = $tsparser->doSyntaxHighlight(trim($v) . LF);
+                    $lines[] = $line;
                 }
 
                 if (!empty($pUids)) {
@@ -133,7 +135,7 @@ class InfoPageTyposcriptConfigController
                                 implode(',', $pUids) => 'edit',
                             ]
                         ],
-                        'columnsOnly' => 'TSconfig',
+                        'columnsOnly' => 'TSconfig,tsconfig_includes',
                         'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
                     ];
                     $url = (string)$uriBuilder->buildUriFromRoute('record_edit', $urlParameters);
@@ -175,9 +177,6 @@ class InfoPageTyposcriptConfigController
                         break;
                     case '1e':
                         $pageTsConfig = $pageTsConfig['mod.']['web_info.'] ?? [];
-                        break;
-                    case '1f':
-                        $pageTsConfig = $pageTsConfig['mod.']['web_func.'] ?? [];
                         break;
                     case '1g':
                         $pageTsConfig = $pageTsConfig['mod.']['web_ts.'] ?? [];
@@ -227,7 +226,6 @@ class InfoPageTyposcriptConfigController
                 '1c' => $lang->getLL('tsconf_parts_1c'),
                 '1d' => $lang->getLL('tsconf_parts_1d'),
                 '1e' => $lang->getLL('tsconf_parts_1e'),
-                '1f' => $lang->getLL('tsconf_parts_1f'),
                 '1g' => $lang->getLL('tsconf_parts_1g'),
                 2 => 'RTE.',
                 7 => 'TCAdefaults.',
@@ -255,7 +253,7 @@ class InfoPageTyposcriptConfigController
         $queryBuilder->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, 0));
 
         $res = $queryBuilder
             ->select('uid', 'TSconfig')

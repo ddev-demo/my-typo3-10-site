@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\About\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,14 @@ namespace TYPO3\CMS\About\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\About\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use TYPO3\CMS\Backend\Module\ModuleLoader;
 use TYPO3\CMS\Backend\Template\ModuleTemplate;
-use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Http\HtmlResponse;
+use TYPO3\CMS\Core\Information\Typo3Information;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
@@ -45,6 +47,22 @@ class AboutController
     protected $view;
 
     /**
+     * @var Typo3Version
+     */
+    protected $version;
+
+    /**
+     * @var Typo3Information
+     */
+    protected $typo3Information;
+
+    public function __construct(Typo3Version $version, Typo3Information $typo3Information)
+    {
+        $this->version = $version;
+        $this->typo3Information = $typo3Information;
+    }
+
+    /**
      * Main action: Show standard information
      *
      * @return ResponseInterface the HTML output
@@ -63,11 +81,11 @@ class AboutController
         }
 
         $this->view->assignMultiple([
-            'copyrightYear' => TYPO3_copyright_year,
-            'donationUrl' => TYPO3_URL_DONATE,
-            'currentVersion' => TYPO3_version,
+            'copyrightYear' => $this->typo3Information->getCopyrightYear(),
+            'donationUrl' => $this->typo3Information::URL_DONATE,
+            'currentVersion' => $this->version->getVersion(),
             'loadedExtensions' => $this->getLoadedExtensions(),
-            'copyRightNotice' => BackendUtility::TYPO3_copyRightNotice(),
+            'copyRightNotice' => $this->typo3Information->getCopyrightNotice(),
             'warnings' => $warnings,
             'modules' => $this->getModulesData()
         ]);

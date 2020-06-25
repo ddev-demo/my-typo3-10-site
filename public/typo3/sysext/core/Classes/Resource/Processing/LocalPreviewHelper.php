@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Processing;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource\Processing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource\Processing;
 
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
 use TYPO3\CMS\Core\Imaging\ImageMagickFile;
@@ -107,9 +108,7 @@ class LocalPreviewHelper
     protected function generatePreviewFromFile(File $file, array $configuration, $targetFilePath)
     {
         // Check file extension
-        if ($file->getType() !== File::FILETYPE_IMAGE
-            && !GeneralUtility::inList($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'], $file->getExtension())
-        ) {
+        if ($file->getType() !== File::FILETYPE_IMAGE && !$file->isImage()) {
             // Create a default image
             $graphicalFunctions = GeneralUtility::makeInstance(GraphicalFunctions::class);
             $graphicalFunctions->getTemporaryImageWithText(

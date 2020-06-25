@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,9 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
+use TYPO3\CMS\Core\Resource\Processing\TaskTypeRegistry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -122,7 +124,7 @@ class ProcessedFile extends AbstractFile
         if (is_array($databaseRow)) {
             $this->reconstituteFromDatabaseRecord($databaseRow);
         }
-        $this->taskTypeRegistry = GeneralUtility::makeInstance(Processing\TaskTypeRegistry::class);
+        $this->taskTypeRegistry = GeneralUtility::makeInstance(TaskTypeRegistry::class);
     }
 
     /**
@@ -141,7 +143,7 @@ class ProcessedFile extends AbstractFile
         $this->properties = $databaseRow;
 
         if (!empty($databaseRow['storage']) && (int)$this->storage->getUid() !== (int)$databaseRow['storage']) {
-            $this->storage = ResourceFactory::getInstance()->getStorageObject($databaseRow['storage']);
+            $this->storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($databaseRow['storage']);
         }
     }
 
@@ -182,7 +184,7 @@ class ProcessedFile extends AbstractFile
      */
     public function updateWithLocalFile($filePath)
     {
-        if ($this->identifier === null) {
+        if (empty($this->identifier)) {
             throw new \RuntimeException('Cannot update original file!', 1350582054);
         }
         $processingFolder = $this->originalFile->getStorage()->getProcessingFolder($this->originalFile);
@@ -199,7 +201,7 @@ class ProcessedFile extends AbstractFile
     }
 
     /*****************************************
-     * STORAGE AND MANAGEMENT RELATED METHDOS
+     * STORAGE AND MANAGEMENT RELATED METHODS
      *****************************************/
     /**
      * Returns TRUE if this file is indexed
@@ -419,7 +421,7 @@ class ProcessedFile extends AbstractFile
      */
     public function usesOriginalFile()
     {
-        return $this->identifier === null || $this->identifier === $this->originalFile->getIdentifier();
+        return empty($this->identifier) || $this->identifier === $this->originalFile->getIdentifier();
     }
 
     /**

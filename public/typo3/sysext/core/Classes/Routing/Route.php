@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\Routing;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Core\Routing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Routing;
 
 use Symfony\Component\Routing\CompiledRoute;
 use Symfony\Component\Routing\Route as SymfonyRoute;
@@ -134,7 +135,7 @@ class Route extends SymfonyRoute
      * Checks if an aspect is set for the given key.
      *
      * @param string $key A variable name
-     * @return bool true if a aspect is specified, false otherwise
+     * @return bool true if an aspect is specified, false otherwise
      */
     public function hasAspect(string $key): bool
     {
@@ -142,7 +143,7 @@ class Route extends SymfonyRoute
     }
 
     /**
-     * Sets a aspect for the given key.
+     * Sets an aspect for the given key.
      *
      * @param string $key The key
      * @param AspectInterface $aspect

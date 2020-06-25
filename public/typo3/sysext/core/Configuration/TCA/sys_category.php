@@ -1,4 +1,5 @@
 <?php
+
 return [
     'ctrl' => [
         'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_category',
@@ -29,9 +30,6 @@ return [
             'ignoreRootLevelRestriction' => true,
         ]
     ],
-    'interface' => [
-        'showRecordFieldList' => 'title,description'
-    ],
     'types' => [
         '1' => [
             'showitem' => '
@@ -60,22 +58,19 @@ return [
             'config' => [
                 'type' => 'select',
                 'renderType' => 'selectSingle',
-                'foreign_table' => 'sys_language',
+                'special' => 'languages',
                 'items' => [
-                    ['LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.allLanguages', -1],
-                    ['LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.default_value', 0]
-                ],
-                'default' => 0,
-                'fieldWizard' => [
-                    'selectIcons' => [
-                        'disabled' => false,
+                    [
+                        'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.allLanguages',
+                        -1,
+                        'flags-multiple'
                     ],
                 ],
+                'default' => 0,
             ]
         ],
         'l10n_parent' => [
             'displayCond' => 'FIELD:sys_language_uid:>:0',
-            'exclude' => true,
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_general.xlf:LGL.l18n_parent',
             'config' => [
                 'type' => 'select',

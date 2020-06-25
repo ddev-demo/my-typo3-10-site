@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Extensionmanager\Utility;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Utility;
+
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\SingletonInterface;
+use TYPO3\CMS\Extensionmanager\Domain\Model\Extension;
 
 /**
  * Utility for dealing with ext_emconf
@@ -26,13 +28,18 @@ class EmConfUtility implements SingletonInterface
     /**
      * Returns the $EM_CONF array from an extensions ext_emconf.php file
      *
+     * @param string $extensionKey the extension name
      * @param array $extension Extension information array
      * @return array|bool EMconf array values or false if no ext_emconf.php found.
      */
-    public function includeEmConf(array $extension)
+    public function includeEmConf(string $extensionKey, array $extension)
     {
-        $_EXTKEY = $extension['key'];
-        $path = Environment::getPublicPath() . '/' . $extension['siteRelPath'] . 'ext_emconf.php';
+        $_EXTKEY = $extensionKey;
+        if (!empty($extension['packagePath'])) {
+            $path = $extension['packagePath'] . 'ext_emconf.php';
+        } else {
+            $path = Environment::getPublicPath() . '/' . $extension['siteRelPath'] . 'ext_emconf.php';
+        }
         $EM_CONF = null;
         if (file_exists($path)) {
             include $path;
@@ -48,11 +55,11 @@ class EmConfUtility implements SingletonInterface
      * Sets dependencies from TER data if any
      *
      * @param array $extensionData
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension Extension object from TER data
+     * @param Extension $extension Extension object from TER data
      * @return string
      * @internal
      */
-    public function constructEmConf(array $extensionData, \TYPO3\CMS\Extensionmanager\Domain\Model\Extension $extension = null)
+    public function constructEmConf(array $extensionData, Extension $extension = null)
     {
         if (is_object($extension) && empty($extensionData['EM_CONF']['constraints'])) {
             $extensionData['EM_CONF']['constraints'] = unserialize($extension->getSerializedDependencies(), ['allowed_classes' => false]);
@@ -83,7 +90,7 @@ $EM_CONF[$_EXTKEY] = ' . $emConf . ';
      * @param array $emConf
      * @return array
      */
-    public function fixEmConf(array $emConf)
+    protected function fixEmConf(array $emConf)
     {
         if (
             !isset($emConf['constraints']) || !isset($emConf['constraints']['depends'])
@@ -139,7 +146,7 @@ $EM_CONF[$_EXTKEY] = ' . $emConf . ';
      * @param mixed $dependency Either a string or an array listing dependencies.
      * @return array A simple dependency list for display
      */
-    public function stringToDependency($dependency)
+    protected function stringToDependency($dependency)
     {
         $constraint = [];
         if (is_string($dependency) && $dependency !== '') {

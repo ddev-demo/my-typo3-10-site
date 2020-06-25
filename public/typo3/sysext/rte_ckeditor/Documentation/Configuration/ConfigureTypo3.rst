@@ -1,5 +1,5 @@
 .. include:: ../Includes.txt
-
+.. highlight:: typoscript
 
 .. _config-typo3:
 
@@ -23,22 +23,20 @@ Page TSconfig
 Relevant Settings for `rte_ckeditor`
 ------------------------------------
 
-Page TSconfig can be used to change
+Page TSconfig can be used to change:
 
-* the preset used in general
-* or the preset used by specific database table fields.
-* or the preset used by specific database table fields for a specific table type (see :ref:`t3tca:types`).
+#.  Default preset::
 
-.. code-block:: typoscript
+      RTE.default.preset = full
 
-   # Default preset
-   RTE.default.preset = full
+#. Override for one field (:ts:`RTE.config.[tableName].[fieldName].preset`)::
 
-   # RTE.config.table.column.preset = presetIdentifier
-   RTE.config.tx_news_domain_model_news.preset = minimal
+      RTE.config.tt_content.bodytext.preset = myCustomPreset
+      RTE.config.tx_news_domain_model_news.bodytext.preset = minimal
 
-   # RTE.config.table.column.types.name.preset = presetIdentifier
-   RTE.config.tt_content.types.textpic.preset = default
+#. Override for one field, if type matches (:ts:`RTE.config.[tableName].[fieldName].types.[type].preset`)::
+
+      RTE.config.tt_content.bodytext.types.textmedia.preset = minimal
 
 For more examples, see :ref:`t3tsconfig:pageTsRte` in "TSconfig Reference".
 
@@ -60,7 +58,7 @@ editing a page.
 #. Enter the Page TSconfig in the field :guilabel:`"Page TSconfig"`
 
 
-Additionally, you can add Page TSconfig in an extension: :file:`Configuration/TSconfig`, see
+Additionally, you can add Page TSconfig in an extension: :file:`Configuration/TSconfig/Page`, see
 :ref:`best-practice-sitepackage`.
 
 How to view settings
@@ -125,10 +123,10 @@ You can view the Global Configuration in
 
 .. _config-typo3-yaml:
 
-Yaml
+YAML
 ====
 
-Most of the configuration of `rte_ckeditor` will be done in a Yaml file.
+Most of the configuration of `rte_ckeditor` will be done in a YAML file.
 
 
 Relevant Settings for `rte_ckeditor`
@@ -139,7 +137,7 @@ See :ref:`config-ref`
 How to change values
 --------------------
 
-This is done directly in the file. The Yaml file should be included in a
+This is done directly in the file. The YAML file should be included in a
 sitepackage extension, see :ref:`best-practice-sitepackage`.
 
 
@@ -149,7 +147,7 @@ TCA
 ===
 
 The :abbr:`table configuration array (TCA)` is used to configure database fields and how they will behave in the
-backend when edited. It is for example used to define that tt_content.bodytext should be edited
+backend when edited. It is for example used to define that ``tt_content.bodytext`` should be edited
 with a rich text editor.
 
 

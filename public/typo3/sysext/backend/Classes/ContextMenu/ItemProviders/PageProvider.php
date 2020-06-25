@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,10 +15,14 @@ namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\ContextMenu\ItemProviders;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
+use TYPO3\CMS\Core\Routing\UnableToLinkToPageException;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Frontend\Page\PageRepository;
 
 /**
  * Context menu item provider for pages table
@@ -164,6 +168,11 @@ class PageProvider extends RecordProvider
     ];
 
     /**
+     * @var bool
+     */
+    protected $languageAccess = false;
+
+    /**
      * Checks if the provider can add items to the menu
      *
      * @return bool
@@ -268,6 +277,7 @@ class PageProvider extends RecordProvider
     protected function initPermissions()
     {
         $this->pagePermissions = $this->backendUser->calcPerms($this->record);
+        $this->languageAccess = $this->hasLanguageAccess();
     }
 
     /**
@@ -277,6 +287,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCreated(): bool
     {
+        if (!$this->backendUser->checkLanguageAccess(0)) {
+            return false;
+        }
         return $this->hasPagePermission(Permission::PAGE_NEW);
     }
 
@@ -287,6 +300,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeEdited(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         if ($this->isRoot()) {
             return false;
         }
@@ -319,6 +335,14 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCut(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
+        if (isset($GLOBALS['TCA'][$this->table]['ctrl']['languageField'])
+            && !in_array($this->record[$GLOBALS['TCA'][$this->table]['ctrl']['languageField']], [0, -1])
+        ) {
+            return false;
+        }
         return !$this->isWebMount()
             && $this->canBeEdited()
             && !$this->isDeletePlaceholder();
@@ -331,6 +355,14 @@ class PageProvider extends RecordProvider
      */
     protected function canBeCopied(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
+        if (isset($GLOBALS['TCA'][$this->table]['ctrl']['languageField'])
+            && !in_array($this->record[$GLOBALS['TCA'][$this->table]['ctrl']['languageField']], [0, -1])
+        ) {
+            return false;
+        }
         return !$this->isRoot()
             && !$this->isWebMount()
             && !$this->isRecordInClipboard('copy')
@@ -345,6 +377,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBePastedInto(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         $clipboardElementCount = count($this->clipboard->elFromTable($this->table));
 
         return $clipboardElementCount
@@ -359,6 +394,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBePastedAfter(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         $clipboardElementCount = count($this->clipboard->elFromTable($this->table));
         return $clipboardElementCount
             && $this->canBeCreated()
@@ -372,6 +410,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeSorted(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         return $this->backendUser->check('tables_modify', $this->table)
             && $this->hasPagePermission(Permission::CONTENT_EDIT)
             && !$this->isDeletePlaceholder()
@@ -385,6 +426,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeDeleted(): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         return !$this->isDeletePlaceholder()
             && !$this->isRecordLocked()
             && !$this->isDeletionDisabledInTS()
@@ -462,6 +506,9 @@ class PageProvider extends RecordProvider
         if ($itemName === 'view') {
             $attributes += $this->getViewAdditionalAttributes();
         }
+        if ($itemName === 'enable' || $itemName === 'disable') {
+            $attributes += $this->getEnableDisableAdditionalAttributes();
+        }
         if ($itemName === 'delete') {
             $attributes += $this->getDeleteAdditionalAttributes();
         }
@@ -496,7 +543,31 @@ class PageProvider extends RecordProvider
      */
     protected function getPreviewPid(): int
     {
-        return (int)$this->record['uid'];
+        return (int)$this->record['sys_language_uid'] === 0 ? (int)$this->record['uid'] : (int)$this->record['l10n_parent'];
+    }
+
+    /**
+     * Returns the view link
+     *
+     * @return string
+     */
+    protected function getViewLink(): string
+    {
+        $language = (int)$this->record['sys_language_uid'];
+        $additionalParams = ($language > 0) ? '&L=' . $language : '';
+
+        try {
+            return BackendUtility::getPreviewUrl(
+                $this->getPreviewPid(),
+                '',
+                null,
+                '',
+                '',
+                $additionalParams
+            );
+        } catch (UnableToLinkToPageException $e) {
+            return '';
+        }
     }
 
     /**
@@ -510,6 +581,9 @@ class PageProvider extends RecordProvider
      */
     protected function canBeToggled(string $fieldName, int $value): bool
     {
+        if (!$this->languageAccess) {
+            return false;
+        }
         if (!empty($GLOBALS['TCA'][$this->table]['columns'][$fieldName]['exclude'])
             && $this->record['doktype'] <= PageRepository::DOKTYPE_SPACER
             && $this->backendUser->check('non_exclude_fields', $this->table . ':' . $fieldName)
@@ -517,5 +591,23 @@ class PageProvider extends RecordProvider
             return (int)$this->record[$fieldName] === $value;
         }
         return false;
+    }
+
+    /**
+     * Returns true if a current user has access to the language of the record
+     *
+     * @see BackendUserAuthentication::checkLanguageAccess()
+     * @return bool
+     */
+    protected function hasLanguageAccess(): bool
+    {
+        if ($this->backendUser->isAdmin()) {
+            return true;
+        }
+        $languageField = $GLOBALS['TCA'][$this->table]['ctrl']['languageField'] ?? '';
+        if ($languageField !== '' && isset($this->record[$languageField])) {
+            return $this->backendUser->checkLanguageAccess((int)$this->record[$languageField]);
+        }
+        return true;
     }
 }

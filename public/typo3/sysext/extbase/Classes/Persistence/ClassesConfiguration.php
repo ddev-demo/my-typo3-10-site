@@ -1,5 +1,6 @@
 <?php
-declare(strict_types = 1);
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +14,7 @@ declare(strict_types = 1);
  *
  * The TYPO3 project - inspiring people to share!
  */
+
 namespace TYPO3\CMS\Extbase\Persistence;
 
 /**
@@ -56,7 +58,7 @@ class ClassesConfiguration
      * The whole classes configuration is used to determine all subclasses recursively.
      *
      * @param string $className
-     * @return array An numeric array that contains all available subclasses-strings as values.
+     * @return array A numeric array that contains all available subclasses-strings as values.
      */
     public function getSubClasses(string $className): array
     {

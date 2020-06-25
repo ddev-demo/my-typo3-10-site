@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Extbase\Reflection;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,9 +15,12 @@ namespace TYPO3\CMS\Extbase\Reflection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extbase\Reflection;
+
 use Doctrine\Common\Annotations\AnnotationReader;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use phpDocumentor\Reflection\DocBlockFactory;
+use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
 use Symfony\Component\PropertyInfo\PropertyInfoExtractor;
 use Symfony\Component\PropertyInfo\Type;
@@ -41,8 +43,6 @@ use TYPO3\CMS\Extbase\Reflection\ClassSchema\Method;
 use TYPO3\CMS\Extbase\Reflection\ClassSchema\Property;
 use TYPO3\CMS\Extbase\Reflection\ClassSchema\PropertyCharacteristics;
 use TYPO3\CMS\Extbase\Reflection\DocBlock\Tags\Null_;
-use TYPO3\CMS\Extbase\Reflection\PropertyInfo\Extractor\PhpDocPropertyTypeExtractor;
-use TYPO3\CMS\Extbase\Utility\TypeHandlingUtility;
 use TYPO3\CMS\Extbase\Validation\Exception\InvalidTypeHintException;
 use TYPO3\CMS\Extbase\Validation\Exception\InvalidValidationConfigurationException;
 use TYPO3\CMS\Extbase\Validation\ValidatorClassNameResolver;
@@ -148,7 +148,9 @@ class ClassSchema
         }
 
         if (self::$propertyInfoExtractor === null) {
-            $phpDocExtractor = new PhpDocPropertyTypeExtractor();
+            $docBlockFactory = DocBlockFactory::createInstance();
+            $phpDocExtractor = new PhpDocExtractor($docBlockFactory);
+
             $reflectionExtractor = new ReflectionExtractor();
 
             self::$propertyInfoExtractor = new PropertyInfoExtractor(
@@ -196,6 +198,10 @@ class ClassSchema
 
         foreach ($reflectionClass->getProperties() as $reflectionProperty) {
             $propertyName = $reflectionProperty->getName();
+            // according to https://www.php.net/manual/en/reflectionclass.getdefaultproperties.php
+            // > This method only works for static properties when used on internal classes. The default
+            // > value of a static class property can not be tracked when using this method on user defined classes.
+            $defaultPropertyValue = $reflectionProperty->isStatic() ? null : $defaultProperties[$propertyName] ?? null;
 
             $propertyCharacteristicsBit = 0;
             $propertyCharacteristicsBit += $reflectionProperty->isPrivate() ? PropertyCharacteristics::VISIBILITY_PRIVATE : 0;
@@ -205,7 +211,7 @@ class ClassSchema
 
             $this->properties[$propertyName] = [
                 'c' => null, // cascade
-                'd' => $defaultProperties[$propertyName] ?? null, // defaultValue
+                'd' => $defaultPropertyValue, // defaultValue
                 'e' => null, // elementType
                 't' => null, // type
                 'v' => [] // validators
@@ -246,34 +252,33 @@ class ClassSchema
                 $classHasInjectProperties = true;
             }
 
+            $this->properties[$propertyName]['propertyCharacteristicsBit'] = $propertyCharacteristicsBit;
+
             /** @var Type[] $types */
             $types = (array)self::$propertyInfoExtractor->getTypes($this->className, $propertyName, ['reflectionProperty' => $reflectionProperty]);
             $typesCount = count($types);
 
-            if ($typesCount > 0
-                && ($annotation = $annotationReader->getPropertyAnnotation($reflectionProperty, Cascade::class)) instanceof Cascade
-            ) {
+            if ($typesCount !== 1) {
+                continue;
+            }
+
+            if (($annotation = $annotationReader->getPropertyAnnotation($reflectionProperty, Cascade::class)) instanceof Cascade) {
                 /** @var Cascade $annotation */
                 $this->properties[$propertyName]['c'] = $annotation->value;
             }
 
-            if ($typesCount === 1) {
-                $this->properties[$propertyName]['t'] = $types[0]->getClassName() ?? $types[0]->getBuiltinType();
-            } elseif ($typesCount === 2) {
-                [$type, $elementType] = $types;
-                $actualType = $type->getClassName() ?? $type->getBuiltinType();
+            /** @var Type $type */
+            $type = current($types);
 
-                if (TypeHandlingUtility::isCollectionType($actualType)
-                    && $elementType->getBuiltinType() === 'array'
-                    && $elementType->getCollectionValueType() instanceof Type
-                    && $elementType->getCollectionValueType()->getClassName() !== null
-                ) {
-                    $this->properties[$propertyName]['t'] = ltrim($actualType, '\\');
-                    $this->properties[$propertyName]['e'] = ltrim($elementType->getCollectionValueType()->getClassName(), '\\');
+            if ($type->isCollection()) {
+                $this->properties[$propertyName]['t'] = ltrim($type->getClassName() ?? $type->getBuiltinType(), '\\');
+
+                if (($collectionValueType = $type->getCollectionValueType()) instanceof Type) {
+                    $this->properties[$propertyName]['e'] = ltrim($collectionValueType->getClassName() ?? $type->getBuiltinType(), '\\');
                 }
+            } else {
+                $this->properties[$propertyName]['t'] = $types[0]->getClassName() ?? $types[0]->getBuiltinType();
             }
-
-            $this->properties[$propertyName]['propertyCharacteristicsBit'] = $propertyCharacteristicsBit;
         }
 
         if ($classHasInjectProperties) {
@@ -368,8 +373,8 @@ class ClassSchema
                     $this->methods[$methodName]['params'][$parameterName]['defaultValue'] = $reflectionParameter->getDefaultValue();
                 }
 
-                if (($reflectionType = $reflectionParameter->getType()) instanceof \ReflectionType) {
-                    $this->methods[$methodName]['params'][$parameterName]['type'] = (string)$reflectionType;
+                if (($reflectionType = $reflectionParameter->getType()) instanceof \ReflectionNamedType) {
+                    $this->methods[$methodName]['params'][$parameterName]['type'] = $reflectionType->getName();
                     $this->methods[$methodName]['params'][$parameterName]['allowsNull'] = $reflectionType->allowsNull();
                 }
 

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Configuration\FlexForm;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Configuration\FlexForm;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Configuration\FlexForm;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\FlexForm\Exception\InvalidCombinedPointerFieldException;
@@ -98,7 +100,7 @@ class FlexFormTools
      * Note that the TCA for data structure definitions MUST NOT be overridden by
      * 'columnsOverrides' or by parent TCA in an inline relation! This would create a huge mess.
      *
-     * Note: This method and the resolving methods belowe are well unit tested and document all
+     * Note: This method and the resolving methods below are well unit tested and document all
      * nasty details this way.
      *
      * @param array $fieldTca Full TCA of the field in question that has type=flex set
@@ -354,7 +356,7 @@ class FlexFormTools
             );
         }
         // Ok, finally we have the field value. This is now either a data structure directly, or a pointer to a file,
-        // or the value can be interpreted as integer (is an uid) and "ds_tableField" is set, so this is the table, uid and field
+        // or the value can be interpreted as integer (is a uid) and "ds_tableField" is set, so this is the table, uid and field
         // where the final data structure can be found.
         if (MathUtility::canBeInterpretedAsInteger($pointerValue)) {
             if (!isset($fieldTca['config']['ds_tableField'])) {
@@ -372,7 +374,7 @@ class FlexFormTools
                     1464116002
                 );
             }
-            list($foreignTableName, $foreignFieldName) = GeneralUtility::trimExplode(':', $fieldTca['config']['ds_tableField']);
+            [$foreignTableName, $foreignFieldName] = GeneralUtility::trimExplode(':', $fieldTca['config']['ds_tableField']);
             $dataStructureIdentifier = [
                 'type' => 'record',
                 'tableName' => $foreignTableName,
@@ -500,7 +502,7 @@ class FlexFormTools
                     $dataStructureIdentifier['dataStructureKey'] = 'default';
                 } else {
                     // The value of the ds_pointerField field points to a key in the ds array that does
-                    // not exists, and there is no fallback either. This can happen if an extension brings
+                    // not exist, and there is no fallback either. This can happen if an extension brings
                     // new flex form definitions and that extension is unloaded later. "Old" records of the
                     // extension could then still point to the no longer existing key in ds. We throw a
                     // specific exception here to give controllers an opportunity to catch this case.
@@ -601,8 +603,8 @@ class FlexFormTools
         // Hook to fetch data structure by given identifier.
         // Method parseFlexFormDataStructureByIdentifier() must be implemented and returns either an
         // empty string "not my business", or a string with the resolved data structure string, or FILE: reference,
-        // or a fully parsed data structure as aray.
-        // Result of the FIRST hook that gives an non-empty string is used, namespace your identifiers in
+        // or a fully parsed data structure as array.
+        // Result of the FIRST hook that gives a non-empty string is used, namespace your identifiers in
         // a way that there is little chance they overlap (eg. prefix with extension name).
         // If implemented, this hook should be paired with a hook in getDataStructureIdentifier() above.
         foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][self::class]['flexParsing'] ?? [] as $hookClass) {
@@ -766,6 +768,7 @@ class FlexFormTools
      */
     public function traverseFlexFormXMLData($table, $field, $row, $callBackObj, $callBackMethod_value)
     {
+        $PA = [];
         if (!is_array($GLOBALS['TCA'][$table]) || !is_array($GLOBALS['TCA'][$table]['columns'][$field])) {
             return 'TCA table/field was not defined.';
         }
@@ -778,11 +781,7 @@ class FlexFormTools
         try {
             $dataStructureIdentifier = $this->getDataStructureIdentifier($GLOBALS['TCA'][$table]['columns'][$field], $table, $field, $row);
             $dataStructureArray = $this->parseDataStructureByIdentifier($dataStructureIdentifier);
-        } catch (InvalidParentRowException $e) {
-        } catch (InvalidParentRowLoopException $e) {
-        } catch (InvalidParentRowRootException $e) {
-        } catch (InvalidPointerFieldValueException $e) {
-        } catch (InvalidIdentifierException $e) {
+        } catch (InvalidParentRowException|InvalidParentRowLoopException|InvalidParentRowRootException|InvalidPointerFieldValueException|InvalidIdentifierException $e) {
         }
 
         // Get flexform XML data

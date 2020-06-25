@@ -1,4 +1,5 @@
 <?php
+
 return [
     // Properties changed from public to protected
     'TYPO3\CMS\Core\DataHandling\DataHandler->recUpdateAccessCache' => [
@@ -1251,6 +1252,21 @@ return [
     'TYPO3\CMS\Extbase\Mvc\Controller\ActionController->viewFormatToObjectNameMap' => [
         'restFiles' => [
             'Breaking-87511-RemoveViewFormatToObjectNameMapProperty.rst',
+        ],
+    ],
+    'TYPO3\CMS\Extbase\Mvc\Web\Response->environmentService' => [
+        'restFiles' => [
+            'Deprecation-89468-DeprecateInjectionOfEnvironmentServiceInWebRequest.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Localization\LanguageService->LL_files_cache' => [
+        'restFiles' => [
+            'Deprecation-90964-LanguageServiceFunctionalityAndInternalProperties.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\Localization\LanguageService->LL_labels_cache' => [
+        'restFiles' => [
+            'Deprecation-90964-LanguageServiceFunctionalityAndInternalProperties.rst',
         ],
     ],
 ];

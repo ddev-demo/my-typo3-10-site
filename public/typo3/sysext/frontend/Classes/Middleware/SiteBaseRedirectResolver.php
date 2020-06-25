@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Frontend\Middleware;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Frontend\Middleware;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -31,6 +33,10 @@ use TYPO3\CMS\Frontend\Page\PageAccessFailureReasons;
 /**
  * Resolves redirects of site if base is not /
  * Can be replaced or extended by extensions if GeoIP-based or user-agent based language redirects need to happen.
+ *
+ * Please note that the redirect usually does not contain the Query Parameters, as special query parameters
+ * like "id", "L" and "cHash" could then result in an error loop.
+ * One special case (adding a "/") is keeping the query parameters though.
  */
 class SiteBaseRedirectResolver implements MiddlewareInterface
 {
@@ -85,7 +91,7 @@ class SiteBaseRedirectResolver implements MiddlewareInterface
     /**
      * Checks if the language is allowed in Frontend, if not, check if there is valid BE user
      *
-     * @param SiteLanguage|null $language
+     * @param SiteLanguage $language
      * @param BackendUserAuthentication|null $user
      * @return bool
      */

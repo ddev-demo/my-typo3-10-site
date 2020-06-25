@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\T3editor\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,13 +12,16 @@ namespace TYPO3\CMS\T3editor\Controller;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\T3editor\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * Loads TSref information from a XML file an responds to an AJAX call.
+ * Loads TSref information from a XML file and responds to an AJAX call.
  * @internal This is a specific Backend Controller implementation and is not considered part of the Public TYPO3 API.
  */
 class TypoScriptReferenceController

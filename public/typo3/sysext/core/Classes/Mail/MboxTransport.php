@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Mail;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Mail;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Mail;
 
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
@@ -65,5 +66,10 @@ class MboxTransport extends AbstractTransport
         @fclose($file);
         GeneralUtility::fixPermissions($this->mboxFile);
         $lockObject->release();
+    }
+
+    public function __toString(): string
+    {
+        return $this->mboxFile;
     }
 }

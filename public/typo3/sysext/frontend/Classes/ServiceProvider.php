@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Frontend;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,7 +15,11 @@ namespace TYPO3\CMS\Frontend;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend;
+
+use ArrayObject;
 use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Cache\Exception\InvalidDataException;
 use TYPO3\CMS\Core\Configuration\ConfigurationManager;
 use TYPO3\CMS\Core\Context\Context;
@@ -59,17 +63,17 @@ class ServiceProvider extends AbstractServiceProvider
 
     public static function getRequestHandler(ContainerInterface $container): Http\RequestHandler
     {
-        return new Http\RequestHandler;
+        return new Http\RequestHandler($container->get(EventDispatcherInterface::class));
     }
 
     /**
      * @param ContainerInterface $container
-     * @return array
+     * @return ArrayObject
      * @throws InvalidDataException
      * @throws CoreException
      */
-    public static function getFrontendMiddlewares(ContainerInterface $container): array
+    public static function getFrontendMiddlewares(ContainerInterface $container): ArrayObject
     {
-        return $container->get(MiddlewareStackResolver::class)->resolve('frontend');
+        return new ArrayObject($container->get(MiddlewareStackResolver::class)->resolve('frontend'));
     }
 }

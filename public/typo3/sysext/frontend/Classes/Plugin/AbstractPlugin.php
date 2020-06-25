@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Plugin;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,9 @@ namespace TYPO3\CMS\Frontend\Plugin;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Plugin;
+
 use Doctrine\DBAL\Driver\Statement;
-use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
@@ -23,7 +23,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Localization\Locales;
 use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\Service\MarkerBasedTemplateService;
-use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
+use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
@@ -86,9 +86,9 @@ class AbstractPlugin
     ];
 
     /**
-     * Local pointer variabe array.
+     * Local pointer variable array.
      * Holds pointer information for the MVC like approach Kasper
-     * initially proposed
+     * initially proposed.
      *
      * @var array
      */
@@ -185,23 +185,6 @@ class AbstractPlugin
     public $pi_autoCacheEn = false;
 
     /**
-     * If set, then links are
-     * 1) not using cHash and
-     * 2) not allowing pages to be cached. (Set this for all USER_INT plugins!)
-     *
-     * @var bool
-     */
-    public $pi_USER_INT_obj = false;
-
-    /**
-     * If set, then caching is disabled if piVars are incoming while
-     * no cHash was set (Set this for all USER plugins!)
-     *
-     * @var bool
-     */
-    public $pi_checkCHash = false;
-
-    /**
      * Should normally be set in the main function with the TypoScript content passed to the method.
      *
      * $conf[LOCAL_LANG][_key_] is reserved for Local Language overrides.
@@ -250,20 +233,8 @@ class AbstractPlugin
         // Setting piVars:
         if ($this->prefixId) {
             $this->piVars = GeneralUtility::_GPmerged($this->prefixId);
-            // cHash mode check
-            // IMPORTANT FOR CACHED PLUGINS (USER cObject): As soon as you generate cached plugin output which
-            // depends on parameters (eg. seeing the details of a news item) you MUST check if a cHash value is set.
-            // Background: The function call will check if a cHash parameter was sent with the URL because only if
-            // it was the page may be cached. If no cHash was found the function will simply disable caching to
-            // avoid unpredictable caching behaviour. In any case your plugin can generate the expected output and
-            // the only risk is that the content may not be cached. A missing cHash value is considered a mistake
-            // in the URL resulting from either URL manipulation, "realurl" "grayzones" etc. The problem is rare
-            // (more frequent with "realurl") but when it occurs it is very puzzling!
-            if ($this->pi_checkCHash && !empty($this->piVars)) {
-                $this->frontendController->reqCHash();
-            }
         }
-        $this->LLkey = $this->getCurrentSiteLanguage()->getTypo3Language();
+        $this->LLkey = $this->frontendController->getLanguage()->getTypo3Language();
 
         /** @var Locales $locales */
         $locales = GeneralUtility::makeInstance(Locales::class);
@@ -317,10 +288,32 @@ class AbstractPlugin
     {
         if (isset($this->conf['_DEFAULT_PI_VARS.']) && is_array($this->conf['_DEFAULT_PI_VARS.'])) {
             $this->conf['_DEFAULT_PI_VARS.'] = $this->applyStdWrapRecursive($this->conf['_DEFAULT_PI_VARS.']);
-            $tmp = $this->conf['_DEFAULT_PI_VARS.'];
+            $typoScriptService = GeneralUtility::makeInstance(TypoScriptService::class);
+            $tmp = $typoScriptService->convertTypoScriptArrayToPlainArray($this->conf['_DEFAULT_PI_VARS.']);
             ArrayUtility::mergeRecursiveWithOverrule($tmp, is_array($this->piVars) ? $this->piVars : []);
+            $tmp = $this->removeInternalNodeValue($tmp);
             $this->piVars = $tmp;
         }
+    }
+
+    /**
+     * Remove the internal array key _typoScriptNodeValue
+     *
+     * @param array $typoscript
+     * @return array
+     */
+    protected function removeInternalNodeValue(array $typoscript): array
+    {
+        foreach ($typoscript as $key => $value) {
+            if ($key === '_typoScriptNodeValue') {
+                unset($typoscript[$key]);
+            }
+            if (is_array($value)) {
+                $typoscript[$key] = $this->removeInternalNodeValue($value);
+            }
+        }
+
+        return $typoscript;
     }
 
     /***************************
@@ -380,8 +373,10 @@ class AbstractPlugin
     public function pi_linkTP($str, $urlParameters = [], $cache = false, $altPageId = 0)
     {
         $conf = [];
-        $conf['no_cache'] = $this->pi_USER_INT_obj ? 0 : !$cache;
-        $conf['parameter'] = $altPageId ? $altPageId : ($this->pi_tmpPageId ? $this->pi_tmpPageId : $this->frontendController->id);
+        if (!$cache) {
+            $conf['no_cache'] = true;
+        }
+        $conf['parameter'] = $altPageId ?: ($this->pi_tmpPageId ?: 'current');
         $conf['additionalParams'] = $this->conf['parent.']['addParams'] . HttpUtility::buildQueryString($urlParameters, '&', true) . $this->pi_moreParams;
         return $this->cObj->typoLink($str, $conf);
     }
@@ -475,7 +470,8 @@ class AbstractPlugin
     public function pi_openAtagHrefInJSwindow($str, $winName = '', $winParams = 'width=670,height=500,status=0,menubar=0,scrollbars=1,resizable=1')
     {
         if (preg_match('/(.*)(<a[^>]*>)(.*)/i', $str, $match)) {
-            $aTagContent = GeneralUtility::get_tag_attributes($match[2]);
+            // decode HTML entities, `href` is used in escaped JavaScript context
+            $aTagContent = GeneralUtility::get_tag_attributes($match[2], true);
             $onClick = 'vHWin=window.open('
                 . GeneralUtility::quoteJSvalue($this->frontendController->baseUrlWrap($aTagContent['href'])) . ','
                 . GeneralUtility::quoteJSvalue($winName ?: md5($aTagContent['href'])) . ','
@@ -517,6 +513,8 @@ class AbstractPlugin
      */
     public function pi_list_browseresults($showResultCount = 1, $tableParams = '', $wrapArr = [], $pointerName = 'pointer', $hscText = true, $forceOutput = false)
     {
+        $wrapper = [];
+        $markerArray = [];
         foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][self::class]['pi_list_browseresults'] ?? [] as $classRef) {
             $hookObj = GeneralUtility::makeInstance($classRef);
             if (method_exists($hookObj, 'pi_list_browseresults')) {
@@ -1085,9 +1083,9 @@ class AbstractPlugin
             $queryBuilder->getRestrictions()->removeAll();
 
             // Split the "FROM ... WHERE" string so we get the WHERE part and TABLE names separated...:
-            list($tableListFragment, $whereFragment) = preg_split('/WHERE/i', trim($query), 2);
+            [$tableListFragment, $whereFragment] = preg_split('/WHERE/i', trim($query), 2);
             foreach (QueryHelper::parseTableList($tableListFragment) as $tableNameAndAlias) {
-                list($tableName, $tableAlias) = $tableNameAndAlias;
+                [$tableName, $tableAlias] = $tableNameAndAlias;
                 $queryBuilder->from($tableName, $tableAlias);
             }
             $queryBuilder->where(QueryHelper::stripLogicalOperatorPrefix($whereFragment));
@@ -1099,11 +1097,12 @@ class AbstractPlugin
         }
         // Search word:
         if ($this->piVars['sword'] && $this->internal['searchFieldList']) {
-            $queryBuilder->andWhere(
-                QueryHelper::stripLogicalOperatorPrefix(
-                    $this->cObj->searchWhere($this->piVars['sword'], $this->internal['searchFieldList'], $table)
-                )
+            $searchWhere = QueryHelper::stripLogicalOperatorPrefix(
+                $this->cObj->searchWhere($this->piVars['sword'], $this->internal['searchFieldList'], $table)
             );
+            if (!empty($searchWhere)) {
+                $queryBuilder->andWhere($searchWhere);
+            }
         }
 
         if ($count) {
@@ -1121,7 +1120,7 @@ class AbstractPlugin
                 }
             } elseif ($orderBy) {
                 foreach (QueryHelper::parseOrderBy($orderBy) as $fieldNameAndSorting) {
-                    list($fieldName, $sorting) = $fieldNameAndSorting;
+                    [$fieldName, $sorting] = $fieldNameAndSorting;
                     $queryBuilder->addOrderBy($fieldName, $sorting);
                 }
             }
@@ -1226,7 +1225,7 @@ class AbstractPlugin
 
         if (!empty($orderBy)) {
             foreach (QueryHelper::parseOrderBy($orderBy) as $fieldNameAndSorting) {
-                list($fieldName, $sorting) = $fieldNameAndSorting;
+                [$fieldName, $sorting] = $fieldNameAndSorting;
                 $queryBuilder->addOrderBy($fieldName, $sorting);
             }
         }
@@ -1325,10 +1324,7 @@ class AbstractPlugin
      */
     public function pi_RTEcssText($str)
     {
-        $parseFunc = $this->frontendController->tmpl->setup['lib.']['parseFunc_RTE.'];
-        if (is_array($parseFunc)) {
-            $str = $this->cObj->parseFunc($str, $parseFunc);
-        }
+        $str = $this->cObj->parseFunc($str, [], '< lib.parseFunc_RTE');
         return $str;
     }
 
@@ -1375,8 +1371,8 @@ class AbstractPlugin
     /**
      * Returns part of $sheetArray pointed to by the keys in $fieldNameArray
      *
-     * @param array $sheetArray Multidimensiona array, typically FlexForm contents
-     * @param array $fieldNameArr Array where each value points to a key in the FlexForms content - the input array will have the value returned pointed to by these keys. All integer keys will not take their integer counterparts, but rather traverse the current position in the array an return element number X (whether this is right behavior is not settled yet...)
+     * @param array $sheetArray Multidimensional array, typically FlexForm contents
+     * @param array $fieldNameArr Array where each value points to a key in the FlexForms content - the input array will have the value returned pointed to by these keys. All integer keys will not take their integer counterparts, but rather traverse the current position in the array and return element number X (whether this is right behavior is not settled yet...)
      * @param string $value Value for outermost key, typ. "vDEF" depending on language.
      * @return mixed The value, typ. string.
      * @internal
@@ -1402,20 +1398,5 @@ class AbstractPlugin
             }
         }
         return $tempArr[$value];
-    }
-
-    /**
-     * Returns the currently configured "site language" if a site is configured (= resolved) in the current request.
-     *
-     * @internal
-     */
-    protected function getCurrentSiteLanguage(): ?SiteLanguage
-    {
-        $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
-        return $request
-               && $request instanceof ServerRequestInterface
-               && $request->getAttribute('language') instanceof SiteLanguage
-            ? $request->getAttribute('language')
-            : null;
     }
 }

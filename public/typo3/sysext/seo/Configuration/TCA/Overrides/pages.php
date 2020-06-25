@@ -1,4 +1,5 @@
 <?php
+
 defined('TYPO3_MODE') or die();
 
 $openGraphCropConfiguration = [
@@ -75,7 +76,7 @@ $tca = [
             'exclude' => true,
             'l10n_mode' => 'exclude',
             'onChange' => 'reload',
-            'label' => 'LLL:EXT:seo/Resources/Private/Language/locallang_tca.xlf:pages.no_index',
+            'label' => 'LLL:EXT:seo/Resources/Private/Language/locallang_tca.xlf:pages.no_index_formlabel',
             'config' => [
                 'type' => 'check',
                 'renderType' => 'checkboxToggle',
@@ -91,7 +92,7 @@ $tca = [
         'no_follow' => [
             'exclude' => true,
             'l10n_mode' => 'exclude',
-            'label' => 'LLL:EXT:seo/Resources/Private/Language/locallang_tca.xlf:pages.no_follow',
+            'label' => 'LLL:EXT:seo/Resources/Private/Language/locallang_tca.xlf:pages.no_follow_formlabel',
             'config' => [
                 'type' => 'check',
                 'renderType' => 'checkboxToggle',
@@ -300,3 +301,5 @@ $GLOBALS['TCA']['pages'] = array_replace_recursive($GLOBALS['TCA']['pages'], $tc
     (string)\TYPO3\CMS\Core\Domain\Repository\PageRepository::DOKTYPE_DEFAULT,
     'after:title'
 );
+
+\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addFieldsToPalette('pages', 'seo', '--linebreak--, description;LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:pages.description_formlabel', 'after:seo_title');

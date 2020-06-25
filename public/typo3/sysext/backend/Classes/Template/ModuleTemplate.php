@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Template;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,58 +13,34 @@ namespace TYPO3\CMS\Backend\Template;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Template;
+
 use TYPO3\CMS\Backend\Backend\Shortcut\ShortcutRepository;
 use TYPO3\CMS\Backend\Template\Components\DocHeaderComponent;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
 use TYPO3\CMS\Core\Messaging\AbstractMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
+use TYPO3\CMS\Core\Utility\PathUtility;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 use TYPO3Fluid\Fluid\View\Exception\InvalidTemplateResourceException;
 
 /**
  * A class taking care of the "outer" HTML of a module, especially
  * the doc header and other related parts.
- *
- * @internal This API is not yet carved in stone and may be adapted later.
  */
 class ModuleTemplate
 {
-    /**
-     * Error Icon Constant
-     *
-     * @internal
-     */
-    const STATUS_ICON_ERROR = 3;
-
-    /**
-     * Warning Icon Constant
-     *
-     * @internal
-     */
-    const STATUS_ICON_WARNING = 2;
-
-    /**
-     * Notification Icon Constant
-     *
-     * @internal
-     */
-    const STATUS_ICON_NOTIFICATION = 1;
-
-    /**
-     * OK Icon Constant
-     *
-     * @internal
-     */
-    const STATUS_ICON_OK = -1;
-
     /**
      * DocHeaderComponent
      *
@@ -178,7 +153,7 @@ class ModuleTemplate
     /**
      * Flash message queue
      *
-     * @var \TYPO3\CMS\Core\Messaging\FlashMessageQueue
+     * @var FlashMessageQueue
      */
     protected $flashMessageQueue;
 
@@ -279,8 +254,13 @@ class ModuleTemplate
     protected function loadJavaScripts()
     {
         $this->pageRenderer->loadRequireJsModule('bootstrap');
-        $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/ContextHelp');
-        $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/DocumentHeader');
+
+        if ($this->getBackendUserAuthentication() && !empty($this->getBackendUserAuthentication()->user)) {
+            $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/ContextHelp');
+            $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/DocumentHeader');
+        }
+        $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/GlobalEventHandler');
+        $this->pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/ActionDispatcher');
     }
 
     /**
@@ -294,7 +274,6 @@ class ModuleTemplate
         if (!empty($GLOBALS['TBE_STYLES']['stylesheet2'])) {
             $this->pageRenderer->addCssFile($GLOBALS['TBE_STYLES']['stylesheet2']);
         }
-        // @see DocumentTemplate::addStyleSheetDirectory
         // Add all *.css files of the directory $path to the stylesheets
         foreach ($this->getRegisteredStylesheetFolders() as $folder) {
             // Read all files in directory and sort them alphabetically
@@ -331,10 +310,13 @@ class ModuleTemplate
         $this->pageRenderer->setCharSet('utf-8');
         $this->pageRenderer->setLanguage($this->getLanguageService()->lang);
         $this->pageRenderer->setMetaTag('name', 'viewport', 'width=device-width, initial-scale=1');
+        $this->pageRenderer->setFavIcon($this->getBackendFavicon());
         $this->pageRenderer->enableConcatenateCss();
         $this->pageRenderer->enableConcatenateJavascript();
         $this->pageRenderer->enableCompressCss();
         $this->pageRenderer->enableCompressJavascript();
+        $languageCode = $this->pageRenderer->getLanguage() === 'default' ? 'en' : $this->pageRenderer->getLanguage();
+        $this->pageRenderer->setHtmlTag('<html lang="' . htmlspecialchars($languageCode) . '">');
         if ($GLOBALS['TYPO3_CONF_VARS']['BE']['debug']) {
             $this->pageRenderer->enableDebugMode();
         }
@@ -454,7 +436,7 @@ class ModuleTemplate
     /**
      * Generates the Menu for things like Web->Info
      *
-     * @param $moduleMenuIdentifier
+     * @param string $moduleMenuIdentifier
      * @return self
      */
     public function registerModuleMenu($moduleMenuIdentifier): self
@@ -521,7 +503,6 @@ class ModuleTemplate
      * Do not use these methods within own extensions if possible or
      * be prepared to change this later again.
      *******************************************/
-
     /**
      * Returns a linked shortcut-icon which will call the shortcut frame and set a
      * shortcut there back to the calling page/module
@@ -612,6 +593,48 @@ class ModuleTemplate
     }
 
     /**
+     * Retrieves configured favicon for backend (with fallback)
+     *
+     * @return string
+     */
+    protected function getBackendFavicon()
+    {
+        $backendFavicon = GeneralUtility::makeInstance(ExtensionConfiguration::class)->get('backend', 'backendFavicon');
+        if (!empty($backendFavicon)) {
+            $path = $this->getUriForFileName($backendFavicon);
+        } else {
+            $path = ExtensionManagementUtility::extPath('backend') . 'Resources/Public/Icons/favicon.ico';
+        }
+        return PathUtility::getAbsoluteWebPath($path);
+    }
+
+    /**
+     * Returns the uri of a relative reference, resolves the "EXT:" prefix
+     * (way of referring to files inside extensions) and checks that the file is inside
+     * the project root of the TYPO3 installation
+     *
+     * @param string $filename The input filename/filepath to evaluate
+     * @return string Returns the filename of $filename if valid, otherwise blank string.
+     */
+    protected function getUriForFileName($filename)
+    {
+        if (strpos($filename, '://')) {
+            return $filename;
+        }
+        $urlPrefix = '';
+        if (strpos($filename, 'EXT:') === 0) {
+            $absoluteFilename = GeneralUtility::getFileAbsFileName($filename);
+            $filename = '';
+            if ($absoluteFilename !== '') {
+                $filename = PathUtility::getAbsoluteWebPath($absoluteFilename);
+            }
+        } elseif (strpos($filename, '/') !== 0) {
+            $urlPrefix = GeneralUtility::getIndpEnv('TYPO3_SITE_PATH');
+        }
+        return $urlPrefix . $filename;
+    }
+
+    /**
      * Returns the BE USER Object
      *
      * @return BackendUserAuthentication
@@ -641,7 +664,7 @@ class ModuleTemplate
      */
     public function redirectUrls($thisLocation = '')
     {
-        $thisLocation = $thisLocation ? $thisLocation : GeneralUtility::linkThisScript([
+        $thisLocation = $thisLocation ?: GeneralUtility::linkThisScript([
             'CB' => '',
             'SET' => '',
             'cmd' => '',
@@ -690,7 +713,7 @@ class ModuleTemplate
         }
         /* @var \TYPO3\CMS\Core\Messaging\FlashMessage $flashMessage */
         $flashMessage = GeneralUtility::makeInstance(
-            \TYPO3\CMS\Core\Messaging\FlashMessage::class,
+            FlashMessage::class,
             $messageBody,
             $messageTitle,
             $severity,
@@ -701,7 +724,7 @@ class ModuleTemplate
     }
 
     /**
-     * @param \TYPO3\CMS\Core\Messaging\FlashMessageQueue $flashMessageQueue
+     * @param FlashMessageQueue $flashMessageQueue
      * @return self
      */
     public function setFlashMessageQueue($flashMessageQueue): self
@@ -711,7 +734,7 @@ class ModuleTemplate
     }
 
     /**
-     * @return \TYPO3\CMS\Core\Messaging\FlashMessageQueue
+     * @return FlashMessageQueue
      */
     protected function getFlashMessageQueue()
     {

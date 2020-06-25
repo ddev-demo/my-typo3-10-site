@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Imaging;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Imaging;
 
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Charset\CharsetConverter;
@@ -578,7 +579,7 @@ class GraphicalFunctions
     public function makeText(&$im, $conf, $workArea)
     {
         // Spacing
-        list($spacing, $wordSpacing) = $this->calcWordSpacing($conf);
+        [$spacing, $wordSpacing] = $this->calcWordSpacing($conf);
         // Position
         $txtPos = $this->txtPosition($conf, $workArea, $conf['BBOX']);
         $theText = $conf['text'];
@@ -594,7 +595,7 @@ class GraphicalFunctions
                 // antiAliasing is setup:
                 $Fcolor = $conf['antiAlias'] ? $Fcolor : -$Fcolor;
                 for ($a = 0; $a < $conf['iterations']; $a++) {
-                    // If any kind of spacing applys, we use this function:
+                    // If any kind of spacing applies, we use this function:
                     if ($spacing || $wordSpacing) {
                         $this->SpacedImageTTFText($im, $conf['fontSize'], $conf['angle'], $txtPos[0], $txtPos[1], $Fcolor, GeneralUtility::getFileAbsFileName($conf['fontFile']), $theText, $spacing, $wordSpacing, $conf['splitRendering.']);
                     } else {
@@ -729,7 +730,7 @@ class GraphicalFunctions
     public function calcBBox($conf)
     {
         $sF = $this->getTextScalFactor($conf);
-        list($spacing, $wordSpacing) = $this->calcWordSpacing($conf, $sF);
+        [$spacing, $wordSpacing] = $this->calcWordSpacing($conf, $sF);
         $theText = $conf['text'];
         $charInf = $this->ImageTTFBBoxWrapper($conf['fontSize'], $conf['angle'], $conf['fontFile'], $theText, $conf['splitRendering.'], $sF);
         $theBBoxInfo = $charInf;
@@ -832,6 +833,7 @@ class GraphicalFunctions
      */
     public function calcTextCordsForMap($cords, $offset, $conf)
     {
+        $newCords = [];
         $pars = GeneralUtility::intExplode(',', $conf['explode'] . ',');
         $newCords[0] = $cords[0] + $offset[0] - $pars[0];
         $newCords[1] = $cords[1] + $offset[1] + $pars[1];
@@ -900,7 +902,7 @@ class GraphicalFunctions
     {
         // You have to use +calc options like [10.h] in 'offset' to get the right position of your text-image, if you use +calc in XY height!!!!
         $maxWidth = (int)$conf['maxWidth'];
-        list($spacing, $wordSpacing) = $this->calcWordSpacing($conf);
+        [$spacing, $wordSpacing] = $this->calcWordSpacing($conf);
         if ($maxWidth) {
             // If any kind of spacing applys, we use this function:
             if ($spacing || $wordSpacing) {
@@ -1055,8 +1057,8 @@ class GraphicalFunctions
                                     if ($c + 1 < count($explodedParts)) {
                                         $newResult[] = [
                                             'str' => $cfg['value'],
-                                            'fontSize' => $cfg['fontSize'] ? $cfg['fontSize'] : $part['fontSize'],
-                                            'fontFile' => $cfg['fontFile'] ? $cfg['fontFile'] : $part['fontFile'],
+                                            'fontSize' => $cfg['fontSize'] ?: $part['fontSize'],
+                                            'fontFile' => $cfg['fontFile'] ?: $part['fontFile'],
                                             'color' => $cfg['color'],
                                             'xSpaceBefore' => $cfg['xSpaceBefore'],
                                             'xSpaceAfter' => $cfg['xSpaceAfter'],
@@ -2064,7 +2066,7 @@ class GraphicalFunctions
      * @param string $params Additional ImageMagick parameters.
      * @param string $frame Refers to which frame-number to select in the image. '' or 0 will select the first frame, 1 will select the next and so on...
      * @param array $options An array with options passed to getImageScale (see this function).
-     * @param bool $mustCreate If set, then another image than the input imagefile MUST be returned. Otherwise you can risk that the input image is good enough regarding messures etc and is of course not rendered to a new, temporary file in typo3temp/. But this option will force it to.
+     * @param bool $mustCreate If set, then another image than the input imagefile MUST be returned. Otherwise you can risk that the input image is good enough regarding measures etc and is of course not rendered to a new, temporary file in typo3temp/. But this option will force it to.
      * @return array|null [0]/[1] is w/h, [2] is file extension and [3] is the filename.
      * @see getImageScale()
      * @see \TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer::getImgResource()
@@ -2306,6 +2308,7 @@ class GraphicalFunctions
      */
     public function getImageScale($info, $w, $h, $options)
     {
+        $out = [];
         $max = strpos($w . $h, 'm') !== false ? 1 : 0;
         if (strpos($w . $h, 'c') !== false) {
             $out['cropH'] = (int)substr(strstr($w, 'c'), 1);
@@ -2528,7 +2531,7 @@ class GraphicalFunctions
 
     /**
      * Compressing a GIF file if not already LZW compressed.
-     * This function is a workaround for the fact that ImageMagick and/or GD does not compress GIF-files to their minimun size (that is RLE or no compression used)
+     * This function is a workaround for the fact that ImageMagick and/or GD does not compress GIF-files to their minimum size (that is RLE or no compression used)
      *
      * The function takes a file-reference, $theFile, and saves it again through GD or ImageMagick in order to compress the file
      * GIF:

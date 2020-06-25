@@ -1,4 +1,5 @@
 <?php
+
 namespace TYPO3\CMS\Core\Mail;
 
 /**
@@ -46,7 +47,7 @@ namespace TYPO3\CMS\Core\Mail;
  *
  * What is it?
  *
- * This class will take an address string, and parse it into it's consituent
+ * This class will take an address string, and parse it into it's constituent
  * parts, be that either addresses, groups, or combinations. Nested groups
  * are not supported. The structure it returns is pretty straight forward,
  * and is similar to that provided by the imap_rfc822_parse_adrlist(). Use
@@ -207,6 +208,8 @@ class Rfc822AddressesParser
      */
     protected function _splitAddresses($address)
     {
+        $split_char = '';
+        $is_group = false;
         if (!empty($this->limit) && count($this->addresses) == $this->limit) {
             return '';
         }
@@ -286,7 +289,7 @@ class Rfc822AddressesParser
      * A common function that will check an exploded string.
      *
      * @internal
-     * @param array $parts The exloded string.
+     * @param array $parts The exploded string.
      * @param string $char  The char that was exploded on.
      * @return mixed False if the string contains unclosed quotes/brackets, or the string on success.
      */
@@ -367,7 +370,7 @@ class Rfc822AddressesParser
      *
      * @internal
      * @param string $string The string to check.
-     * @param int &$num	The number of occurrences.
+     * @param int $num	The number of occurrences.
      * @param string $char   The character to count.
      * @return int The number of occurrences of $char in $string, adjusted for backslashes.
      */
@@ -395,6 +398,7 @@ class Rfc822AddressesParser
      */
     protected function _validateAddress($address)
     {
+        $structure = [];
         $is_group = false;
         $addresses = [];
         if ($address['group']) {
@@ -541,11 +545,13 @@ class Rfc822AddressesParser
      * mailbox =   addr-spec		 ; simple address
      * phrase route-addr ; name and route-addr
      *
-     * @param string &$mailbox The string to check.
+     * @param string $mailbox The string to check.
      * @return bool Success or failure.
      */
     protected function validateMailbox(&$mailbox)
     {
+        $route_addr = null;
+        $addr_spec = [];
         // A couple of defaults.
         $phrase = '';
         $comments = [];
@@ -620,6 +626,8 @@ class Rfc822AddressesParser
      */
     protected function _validateRouteAddr($route_addr)
     {
+        $route = '';
+        $return = [];
         // Check for colon.
         if (strpos($route_addr, ':') !== false) {
             $parts = explode(':', $route_addr);
@@ -630,7 +638,7 @@ class Rfc822AddressesParser
         // If $route is same as $route_addr then the colon was in
         // quotes or brackets or, of course, non existent.
         if ($route === $route_addr) {
-            unset($route);
+            $route = '';
             $addr_spec = $route_addr;
             if (($addr_spec = $this->_validateAddrSpec($addr_spec)) === false) {
                 return false;
@@ -646,11 +654,7 @@ class Rfc822AddressesParser
                 return false;
             }
         }
-        if (isset($route)) {
-            $return['adl'] = $route;
-        } else {
-            $return['adl'] = '';
-        }
+        $return['adl'] = $route;
         $return = array_merge($return, $addr_spec);
         return $return;
     }
@@ -661,7 +665,7 @@ class Rfc822AddressesParser
      *
      * @internal
      * @param string $route The string to check.
-     * @return mixed False on failure, or the validated $route on success.
+     * @return string|bool False on failure, or the validated $route on success.
      */
     protected function _validateRoute($route)
     {
@@ -688,6 +692,7 @@ class Rfc822AddressesParser
      */
     protected function _validateDomain($domain)
     {
+        $sub_domains = [];
         // Note the different use of $subdomains and $sub_domains
         $subdomains = explode('.', $domain);
         while (!empty($subdomains)) {

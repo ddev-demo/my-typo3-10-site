@@ -20,7 +20,10 @@ return [
     'SYS' => [
         'sitename' => 'New TYPO3 site',
         'features' => [
-            'unifiedPageTranslationHandling' => true
+            'fluidBasedPageModule' => true,
+            'unifiedPageTranslationHandling' => true,
+            'rearrangedRedirectMiddlewares' => true,
+            'felogin.extbase' => true,
         ],
     ],
 ];

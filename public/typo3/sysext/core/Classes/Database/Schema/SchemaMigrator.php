@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Database\Schema;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Database\Schema;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Database\Schema;
 
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\Schema;
@@ -49,8 +51,6 @@ class SchemaMigrator
      * @throws \InvalidArgumentException
      * @throws \RuntimeException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
      * @throws StatementException
      */
     public function getUpdateSuggestions(array $statements, bool $remove = false): array
@@ -84,8 +84,6 @@ class SchemaMigrator
      * @throws \InvalidArgumentException
      * @throws \RuntimeException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
      * @throws StatementException
      */
     public function getSchemaDiffs(array $statements): array
@@ -116,8 +114,6 @@ class SchemaMigrator
      * @throws \Doctrine\DBAL\DBALException
      * @throws \Doctrine\DBAL\Schema\SchemaException
      * @throws \InvalidArgumentException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
      * @throws StatementException
      * @throws \RuntimeException
@@ -165,8 +161,6 @@ class SchemaMigrator
      * @throws \InvalidArgumentException
      * @throws \RuntimeException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
      * @throws StatementException
      */
     public function install(array $statements, bool $createOnly = false): array
@@ -205,7 +199,7 @@ class SchemaMigrator
             // Only handle insert statements and extract the table at the same time. Extracting
             // the table name is required to perform the inserts on the right connection.
             if (preg_match('/^INSERT\s+INTO\s+`?(\w+)`?(.*)/i', $statement, $matches)) {
-                list(, $tableName, $sqlFragment) = $matches;
+                [, $tableName, $sqlFragment] = $matches;
                 $insertStatements[$tableName][] = sprintf(
                     'INSERT INTO %s %s',
                     $connectionPool->getConnectionForTable($tableName)->quoteIdentifier($tableName),
@@ -244,8 +238,6 @@ class SchemaMigrator
      * @throws \RuntimeException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\StatementException
      * @throws \TYPO3\CMS\Core\Database\Schema\Exception\UnexpectedSignalReturnValueTypeException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
      */
     public function parseCreateTableStatements(array $statements): array
     {

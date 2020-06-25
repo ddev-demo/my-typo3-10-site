@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Core;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Core;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Core;
+
 use Composer\Autoload\ClassLoader;
 use Composer\Autoload\ClassMapGenerator;
+use TYPO3\CMS\Core\Error\Exception;
 use TYPO3\CMS\Core\Package\PackageInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -178,7 +180,7 @@ class ClassLoadingInformationGenerator
         if (!empty($manifest->extra->{'typo3/class-alias-loader'}->{'class-alias-maps'})) {
             $possibleClassAliasFiles = $manifest->extra->{'typo3/class-alias-loader'}->{'class-alias-maps'};
             if (!is_array($possibleClassAliasFiles)) {
-                throw new \TYPO3\CMS\Core\Error\Exception('"typo3/class-alias-loader"/"class-alias-maps" must return an array!', 1444142481);
+                throw new Exception('"typo3/class-alias-loader"/"class-alias-maps" must return an array!', 1444142481);
             }
         } else {
             $possibleClassAliasFiles[] = 'Migrations/Code/ClassAliasMap.php';
@@ -189,7 +191,7 @@ class ClassLoadingInformationGenerator
             if (file_exists($possiblePathToClassAliasFile)) {
                 $packageAliasMap = require $possiblePathToClassAliasFile;
                 if (!is_array($packageAliasMap)) {
-                    throw new \TYPO3\CMS\Core\Error\Exception('"class alias maps" must return an array', 1422625075);
+                    throw new Exception('"class alias maps" must return an array', 1422625075);
                 }
                 foreach ($packageAliasMap as $aliasClassName => $className) {
                     $lowerCasedAliasClassName = strtolower($aliasClassName);
@@ -230,12 +232,12 @@ EOF;
         ksort($classMap);
         ksort($psr4);
         foreach ($classMap as $class => $relativePath) {
-            $classMapFile .= sprintf('    %s => %s,', var_export($class, true), $this->getPathCode($relativePath)) . LF;
+            $classMapFile .= sprintf('    %s => %s,', var_export($class, true), $this->getPathCode($relativePath)) . "\n";
         }
         $classMapFile .= ");\n";
 
         foreach ($psr4 as $prefix => $relativePaths) {
-            $psr4File .= sprintf('    %s => array(%s),', var_export($prefix, true), implode(',', array_map([$this, 'getPathCode'], $relativePaths))) . LF;
+            $psr4File .= sprintf('    %s => array(%s),', var_export($prefix, true), implode(',', array_map([$this, 'getPathCode'], $relativePaths))) . "\n";
         }
         $psr4File .= ");\n";
 
@@ -299,7 +301,7 @@ EOF;
             'aliasToClassNameMapping' => $aliasToClassNameMapping,
             'classNameToAliasMapping' => $classNameToAliasMapping
         ];
-        $fileContent = '<?php' . chr(10) . 'return ';
+        $fileContent = "<?php\nreturn ";
         $fileContent .= var_export($exportArray, true);
         $fileContent .= ";\n";
         return $fileContent;

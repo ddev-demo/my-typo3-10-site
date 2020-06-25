@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Backend\Shortcut;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Backend\Shortcut;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Backend\Shortcut;
 
 use TYPO3\CMS\Backend\Module\ModuleLoader;
 use TYPO3\CMS\Backend\Routing\Exception\ResourceNotFoundException;
@@ -134,7 +136,7 @@ class ShortcutRepository
     }
 
     /**
-     * runs through the available shortcuts an collects their groups
+     * runs through the available shortcuts and collects their groups
      *
      * @return array Array of groups which have shortcuts
      */
@@ -197,7 +199,7 @@ class ShortcutRepository
 
         $queryParts = parse_url($url);
         $queryParameters = [];
-        parse_str($queryParts['query'], $queryParameters);
+        parse_str($queryParts['query'] ?? '', $queryParameters);
 
         if (!empty($queryParameters['scheme'])) {
             throw new \RuntimeException('Shortcut URLs must be relative', 1518785877);
@@ -233,7 +235,7 @@ class ShortcutRepository
         // Check if given id is a combined identifier
         if (!empty($queryParameters['id']) && preg_match('/^[\d]+:/', $queryParameters['id'])) {
             try {
-                $resourceFactory = ResourceFactory::getInstance();
+                $resourceFactory = GeneralUtility::makeInstance(ResourceFactory::class);
                 $resource = $resourceFactory->getObjectFromCombinedIdentifier($queryParameters['id']);
                 $title = trim(sprintf(
                     '%s (%s)',
@@ -484,12 +486,12 @@ class ShortcutRepository
         while ($row = $result->fetch()) {
             $shortcut = ['raw' => $row];
 
-            list($row['module_name'], $row['M_module_name']) = explode('|', $row['module_name']);
+            [$row['module_name'], $row['M_module_name']] = explode('|', $row['module_name']);
 
             $queryParts = parse_url($row['url']);
             // Explode GET vars recursively
             $queryParameters = [];
-            parse_str($queryParts['query'], $queryParameters);
+            parse_str($queryParts['query'] ?? '', $queryParameters);
 
             if ($row['module_name'] === 'xMOD_alt_doc.php' && is_array($queryParameters['edit'])) {
                 $shortcut['table'] = key($queryParameters['edit']);
@@ -601,6 +603,7 @@ class ShortcutRepository
      */
     protected function getShortcutIcon(array $row, array $shortcut): string
     {
+        $selectFields = [];
         switch ($row['module_name']) {
             case 'xMOD_alt_doc.php':
                 $table = $shortcut['table'];
@@ -661,7 +664,7 @@ class ShortcutRepository
                 $moduleName = $row['module_name'];
 
                 if (strpos($moduleName, '_') !== false) {
-                    list($mainModule, $subModule) = explode('_', $moduleName, 2);
+                    [$mainModule, $subModule] = explode('_', $moduleName, 2);
                     $iconIdentifier = $this->moduleLoader->modules[$mainModule]['sub'][$subModule]['iconIdentifier'];
                 } elseif (!empty($moduleName)) {
                     $iconIdentifier = $this->moduleLoader->modules[$moduleName]['iconIdentifier'];
@@ -692,7 +695,7 @@ class ShortcutRepository
         if (strpos($moduleName, 'xMOD_') === 0) {
             $title = substr($moduleName, 5);
         } else {
-            list($mainModule, $subModule) = explode('_', $moduleName);
+            [$mainModule, $subModule] = explode('_', $moduleName);
             $mainModuleLabels = $this->moduleLoader->getLabelsForModule($mainModule);
             $title = $languageService->sL($mainModuleLabels['title']);
 
@@ -733,16 +736,16 @@ class ShortcutRepository
     {
         $parsedUrl = parse_url($url);
         $parameters = [];
-        parse_str($parsedUrl['query'], $parameters);
+        parse_str($parsedUrl['query'] ?? '', $parameters);
 
         $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         // parse the returnUrl and replace the module token of it
         if (!empty($parameters['returnUrl'])) {
             $parsedReturnUrl = parse_url($parameters['returnUrl']);
             $returnUrlParameters = [];
-            parse_str($parsedReturnUrl['query'], $returnUrlParameters);
+            parse_str($parsedReturnUrl['query'] ?? '', $returnUrlParameters);
 
-            if (strpos($parsedReturnUrl['path'], 'index.php') !== false && !empty($returnUrlParameters['route'])) {
+            if (strpos($parsedReturnUrl['path'] ?? '', 'index.php') !== false && !empty($returnUrlParameters['route'])) {
                 $module = $returnUrlParameters['route'];
                 $parameters['returnUrl'] = (string)$uriBuilder->buildUriFromRoutePath($module, $returnUrlParameters);
                 $url = $parsedUrl['path'] . '?' . http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);

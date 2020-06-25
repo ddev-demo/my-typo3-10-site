@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Condition;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,14 @@ namespace TYPO3\CMS\Form\Domain\Condition;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Condition;
+
 use TYPO3\CMS\Core\ExpressionLanguage\AbstractProvider;
 use TYPO3\CMS\Form\Domain\Condition\Functions\FormConditionFunctionsProvider;
 
 /**
  * Scope: frontend
- * **This classis NOT meant to be sub classed by developers .**
+ * **This class is NOT meant to be sub classed by developers.**
  *
  * @internal
  */

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Localization;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Localization;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Localization;
 
 use TYPO3\CMS\Core\Localization\Exception\FileNotFoundException;
 use TYPO3\CMS\Core\Localization\Exception\InvalidParserException;
@@ -106,7 +107,7 @@ class LanguageStore implements SingletonInterface
      */
     public function getDataByLanguage($fileReference, $languageKey)
     {
-        return $this->data[$fileReference][$languageKey];
+        return $this->data[$fileReference][$languageKey] ?? [];
     }
 
     /**

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\ViewHelpers\Be;
+
 use TYPO3\CMS\Extensionmanager\Controller\AbstractController;
+use TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper;
 
 /**
  * Special ViewHelper for the BE module of the Extension Manager. Loads JS code for triggering
@@ -31,7 +33,7 @@ use TYPO3\CMS\Extensionmanager\Controller\AbstractController;
  *
  * @internal
  */
-class TriggerViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendViewHelper
+class TriggerViewHelper extends AbstractBackendViewHelper
 {
     /**
      * Initializes the arguments
@@ -47,7 +49,6 @@ class TriggerViewHelper extends \TYPO3\CMS\Fluid\ViewHelpers\Be\AbstractBackendV
      * menu when modules are loaded/unloaded.
      *
      * @return string This ViewHelper does not return any content
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate
      * @see \TYPO3\CMS\Core\Page\PageRenderer
      */
     public function render()

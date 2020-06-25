@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Impexp;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Impexp;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Core\Environment;
@@ -25,6 +26,7 @@ use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\Security\FileNameValidator;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -217,7 +219,7 @@ class Import extends ImportExport
 
         $defaultStorageUid = null;
         // get default storage
-        $defaultStorage = ResourceFactory::getInstance()->getDefaultStorage();
+        $defaultStorage = GeneralUtility::makeInstance(ResourceFactory::class)->getDefaultStorage();
         if ($defaultStorage !== null) {
             $defaultStorageUid = $defaultStorage->getUid();
         }
@@ -244,7 +246,7 @@ class Import extends ImportExport
             && (bool)$storageObject->isWritable() === (bool)$storageRecord['is_writable']
             && (bool)$storageObject->isOnline() === (bool)$storageRecord['is_online']
         ) {
-            $storageRecordConfiguration = ResourceFactory::getInstance()->convertFlexFormDataToConfigurationArray($storageRecord['configuration']);
+            $storageRecordConfiguration = GeneralUtility::makeInstance(ResourceFactory::class)->convertFlexFormDataToConfigurationArray($storageRecord['configuration']);
             $storageObjectConfiguration = $storageObject->getConfiguration();
             // compare the properties: pathType and basePath
             if ($storageRecordConfiguration['pathType'] === $storageObjectConfiguration['pathType']
@@ -303,7 +305,7 @@ class Import extends ImportExport
                         // storage object will check whether the target folder exists and set the
                         // isOnline flag depending on the outcome.
                         $storageRecord['uid'] = 0;
-                        $resourceStorage = ResourceFactory::getInstance()->createStorageObject($storageRecord);
+                        $resourceStorage = GeneralUtility::makeInstance(ResourceFactory::class)->createStorageObject($storageRecord);
                         if (!$resourceStorage->isOnline()) {
                             $configuration = $resourceStorage->getConfiguration();
                             $messages['resourceStorageFolderMissing_' . $storageRecordUid] =
@@ -333,7 +335,7 @@ class Import extends ImportExport
         // fetch fresh storage records from database
         $storageRecords = $this->fetchStorageRecords();
 
-        $defaultStorage = ResourceFactory::getInstance()->getDefaultStorage();
+        $defaultStorage = GeneralUtility::makeInstance(ResourceFactory::class)->getDefaultStorage();
 
         $sanitizedFolderMappings = [];
 
@@ -377,9 +379,9 @@ class Import extends ImportExport
             // mapping. Only in this case we could be sure, that it's a local, online and writable storage.
             if ($useStorageFromStorageRecords && isset($storageRecords[$fileRecord['storage']])) {
                 /** @var \TYPO3\CMS\Core\Resource\ResourceStorage $storage */
-                $storage = ResourceFactory::getInstance()->getStorageObject($fileRecord['storage'], $storageRecords[$fileRecord['storage']]);
+                $storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($fileRecord['storage'], $storageRecords[$fileRecord['storage']]);
             } elseif ($this->isFallbackStorage($fileRecord['storage'])) {
-                $storage = ResourceFactory::getInstance()->getStorageObject(0);
+                $storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject(0);
             } elseif ($defaultStorage !== null) {
                 $storage = $defaultStorage;
             } else {
@@ -392,6 +394,7 @@ class Import extends ImportExport
             // check, if there is an identical file
             try {
                 if ($storage->hasFile($fileRecord['identifier'])) {
+                    /** @var File $file */
                     $file = $storage->getFile($fileRecord['identifier']);
                     if ($file->getSha1() === $fileRecord['sha1']) {
                         $newFile = $file;
@@ -682,7 +685,7 @@ class Import extends ImportExport
     }
 
     /**
-     * Write all database records except pages (writtein in writeRecords_pages())
+     * Write all database records except pages (written in writeRecords_pages())
      *
      * @param int $pid Page id in which to import
      * @see writeRecords_pages()
@@ -968,7 +971,6 @@ class Import extends ImportExport
     /***************************
      * Import / Relations setting
      ***************************/
-
     /**
      * At the end of the import process all file and DB relations should be set properly (that is relations
      * to imported records are all re-created so imported records are correctly related again)
@@ -979,7 +981,7 @@ class Import extends ImportExport
     public function setRelations()
     {
         $updateData = [];
-        // import_newId contains a register of all records that was in the import memorys "records" key
+        // import_newId contains a register of all records that was in the import memory's "records" key
         foreach ($this->import_newId as $nId => $dat) {
             $table = $dat['table'];
             $uid = $dat['uid'];
@@ -1055,7 +1057,7 @@ class Import extends ImportExport
                     // Fallback value
                     $value = 'file:' . $fileUid;
                     try {
-                        $file = ResourceFactory::getInstance()->retrieveFileOrFolderObject($fileUid);
+                        $file = GeneralUtility::makeInstance(ResourceFactory::class)->retrieveFileOrFolderObject($fileUid);
                     } catch (\Exception $e) {
                         $file = null;
                     }
@@ -1119,7 +1121,7 @@ class Import extends ImportExport
     public function setFlexFormRelations()
     {
         $updateData = [];
-        // import_newId contains a register of all records that was in the import memorys "records" key
+        // import_newId contains a register of all records that were in the import memory's "records" key
         foreach ($this->import_newId as $nId => $dat) {
             $table = $dat['table'];
             $uid = $dat['uid'];
@@ -1208,7 +1210,7 @@ class Import extends ImportExport
     public function remapListedDBRecords_flexFormCallBack($pParams, $dsConf, $dataValue, $dataValue_ext1, $dataValue_ext2, $path)
     {
         // Extract parameters:
-        list(, , , $config) = $pParams;
+        [, , , $config] = $pParams;
         // In case the $path is used as index without a trailing slash we will remove that
         if (!is_array($config['flexFormRels']['db'][$path]) && is_array($config['flexFormRels']['db'][rtrim($path, '/')])) {
             $path = rtrim($path, '/');
@@ -1325,7 +1327,7 @@ class Import extends ImportExport
     public function processSoftReferences_flexFormCallBack($pParams, $dsConf, $dataValue, $dataValue_ext1, $dataValue_ext2, $path)
     {
         // Extract parameters:
-        list($table, $origUid, $field, $softRefCfgs) = $pParams;
+        [$table, $origUid, $field, $softRefCfgs] = $pParams;
         if (is_array($softRefCfgs)) {
             // First, find all soft reference configurations for this structure path (they are listed flat in the header):
             $thisSoftRefCfgList = [];
@@ -1383,11 +1385,11 @@ class Import extends ImportExport
                         case 'db':
                         default:
                             // Trying to map database element if found in the mapID array:
-                            list($tempTable, $tempUid) = explode(':', $cfg['subst']['recordRef']);
+                            [$tempTable, $tempUid] = explode(':', $cfg['subst']['recordRef']);
                             if (isset($this->import_mapId[$tempTable][$tempUid])) {
                                 $insertValue = BackendUtility::wsMapId($tempTable, $this->import_mapId[$tempTable][$tempUid]);
                                 if (strpos($cfg['subst']['tokenValue'], ':') !== false) {
-                                    list($tokenKey) = explode(':', $cfg['subst']['tokenValue']);
+                                    [$tokenKey] = explode(':', $cfg['subst']['tokenValue']);
                                     $insertValue = $tokenKey . ':' . $insertValue;
                                 }
                             }
@@ -1493,7 +1495,7 @@ class Import extends ImportExport
                             }
                         }
                     } else {
-                        // Create the resouces directory name (filename without extension, suffixed "_FILES")
+                        // Create the ressource's directory name (filename without extension, suffixed "_FILES")
                         $resourceDir = PathUtility::dirname($newName) . '/' . preg_replace('/\\.[^.]*$/', '', PathUtility::basename($newName)) . '_FILES';
                         if (GeneralUtility::mkdir($resourceDir)) {
                             foreach ($fileHeaderInfo['EXT_RES_ID'] as $res_fileID) {
@@ -1536,14 +1538,14 @@ class Import extends ImportExport
         // Just for security, check again. Should actually not be necessary.
         if (!$bypassMountCheck) {
             try {
-                ResourceFactory::getInstance()->getFolderObjectFromCombinedIdentifier(PathUtility::dirname($fileName));
+                GeneralUtility::makeInstance(ResourceFactory::class)->getFolderObjectFromCombinedIdentifier(PathUtility::dirname($fileName));
             } catch (InsufficientFolderAccessPermissionsException $e) {
                 $this->error('ERROR: Filename "' . $fileName . '" was not allowed in destination path!');
                 return false;
             }
         }
         $fI = GeneralUtility::split_fileref($fileName);
-        if (!$fileProcObj->checkIfAllowed($fI['fileext'], $fI['path'], $fI['file'])) {
+        if (!GeneralUtility::makeInstance(FileNameValidator::class)->isValid($fI['file'])) {
             $this->error('ERROR: Filename "' . $fileName . '" failed against extension check or deny-pattern!');
             return false;
         }
@@ -1557,7 +1559,7 @@ class Import extends ImportExport
         }
         GeneralUtility::writeFile($fileName, $this->dat['files'][$fileID]['content']);
         $this->fileIDMap[$fileID] = $fileName;
-        if (md5(file_get_contents($fileName)) == $this->dat['files'][$fileID]['content_md5']) {
+        if (hash_equals(md5(file_get_contents($fileName)), $this->dat['files'][$fileID]['content_md5'])) {
             return true;
         }
         $this->error('ERROR: File content "' . $fileName . '" was corrupted');
@@ -1690,7 +1692,7 @@ class Import extends ImportExport
         }
         $datString = fread($fd, (int)$initStrDat[2]);
         fread($fd, 1);
-        if (md5($datString) === $initStrDat[0]) {
+        if (hash_equals($initStrDat[0], md5($datString))) {
             if ($initStrDat[1]) {
                 if ($this->compress) {
                     $datString = gzuncompress($datString);
@@ -1743,7 +1745,7 @@ class Import extends ImportExport
         }
         $datString = substr($filecontent, $pointer, (int)$initStrDat[2]);
         $pointer += (int)$initStrDat[2] + 1;
-        if (md5($datString) === $initStrDat[0]) {
+        if (hash_equals($initStrDat[0], md5($datString))) {
             if ($initStrDat[1]) {
                 if ($this->compress) {
                     $datString = gzuncompress($datString);

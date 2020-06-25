@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\Routing\Enhancer;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Core\Routing\Enhancer;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Routing\Enhancer;
 
 use TYPO3\CMS\Core\Routing\Aspect\StaticMappableAspectInterface;
 use TYPO3\CMS\Core\Routing\PageArguments;
@@ -38,7 +39,7 @@ use TYPO3\CMS\Core\Utility\ArrayUtility;
  *       user_id: '[a-z]+'
  *       hash: '[a-z]{0-6}'
  */
-class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterface, ResultingInterface
+class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterface, InflatableEnhancerInterface, ResultingInterface
 {
     /**
      * @var array
@@ -81,12 +82,13 @@ class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
             ->inflateNamespaceParameters($dynamicCandidates, $this->namespace);
         // static arguments, that don't appear in dynamic arguments
         $staticArguments = ArrayUtility::arrayDiffAssocRecursive($routeArguments, $dynamicArguments);
-        // inflate remaining query arguments that could not be applied to the route
-        $remainingQueryParameters = $variableProcessor
-            ->inflateNamespaceParameters($remainingQueryParameters, $this->namespace);
 
         $page = $route->getOption('_page');
         $pageId = (int)($page['l10n_parent'] > 0 ? $page['l10n_parent'] : $page['uid']);
+        // See PageSlugCandidateProvider where this is added.
+        if ($page['MPvar'] ?? '') {
+            $routeArguments['MP'] = $page['MPvar'];
+        }
         $type = $this->resolveType($route, $remainingQueryParameters);
         return new PageArguments($pageId, $type, $routeArguments, $staticArguments, $remainingQueryParameters);
     }
@@ -114,14 +116,17 @@ class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
         $arguments = $configuration['_arguments'] ?? [];
         unset($configuration['_arguments']);
 
+        $variableProcessor = $this->getVariableProcessor();
         $routePath = $this->modifyRoutePath($configuration['routePath']);
-        $routePath = $this->getVariableProcessor()->deflateRoutePath($routePath, $this->namespace, $arguments);
+        $routePath = $variableProcessor->deflateRoutePath($routePath, $this->namespace, $arguments);
         $variant = clone $defaultPageRoute;
         $variant->setPath(rtrim($variant->getPath(), '/') . '/' . ltrim($routePath, '/'));
         $variant->addOptions(['_enhancer' => $this, '_arguments' => $arguments]);
-        $variant->setDefaults($configuration['defaults'] ?? []);
-        $variant->setRequirements($this->getNamespacedRequirements());
+        $variant->setDefaults(
+            $variableProcessor->deflateKeys($this->configuration['defaults'] ?? [], $this->namespace, $arguments)
+        );
         $this->applyRouteAspects($variant, $this->aspects ?? [], $this->namespace);
+        $this->applyRequirements($variant, $this->configuration['requirements'] ?? [], $this->namespace);
         return $variant;
     }
 
@@ -153,9 +158,11 @@ class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
      * Add the namespace of the plugin to all requirements, so they are unique for this plugin.
      *
      * @return array
+     * @deprecated Since TYPO3 v10.3, will be removed in TYPO3 v11.0. Use AbstractEnhancer::applyRequirements() instead.
      */
     protected function getNamespacedRequirements(): array
     {
+        trigger_error('PluginEnhancer::getNamespacedRequirements will be removed in TYPO3 v11.0. Use AbstractEnhancer::applyRequirements() instead.', E_USER_DEPRECATED);
         $requirements = [];
         foreach ($this->configuration['requirements'] ?? [] as $name => $value) {
             $requirements[$this->namespace . '_' . $name] = $value;
@@ -182,7 +189,7 @@ class PluginEnhancer extends AbstractEnhancer implements RoutingEnhancerInterfac
      * @param array $internals Internal instructions (_route, _controller, ...)
      * @return array
      */
-    protected function inflateParameters(array $parameters, array $internals = []): array
+    public function inflateParameters(array $parameters, array $internals = []): array
     {
         return $this->getVariableProcessor()
             ->inflateNamespaceParameters($parameters, $this->namespace);

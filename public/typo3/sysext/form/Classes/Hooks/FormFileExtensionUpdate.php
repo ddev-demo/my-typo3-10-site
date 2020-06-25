@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Hooks;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Hooks;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Hooks;
 
 use Symfony\Component\Console\Output\OutputInterface;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
@@ -428,17 +430,17 @@ class FormFileExtensionUpdate implements ChattyInterface, UpgradeWizardInterface
      * @param string $persistenceIdentifier
      * @param array $formDefinition
      * @param File $file
-     * @param string $localtion
+     * @param string $location
      * @return array
      */
     protected function setFormDefinitionInformationData(
         string $persistenceIdentifier,
         array $formDefinition,
         File $file,
-        string $localtion
+        string $location
     ): array {
         return [
-            'location' => $localtion,
+            'location' => $location,
             'persistenceIdentifier' => $persistenceIdentifier,
             'prototypeName' => $formDefinition['prototypeName'],
             'formIdentifier' => $formDefinition['identifier'],

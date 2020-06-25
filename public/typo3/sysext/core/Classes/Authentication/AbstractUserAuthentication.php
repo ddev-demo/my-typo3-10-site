@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Authentication;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use Symfony\Component\HttpFoundation\Cookie;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Core\Database\Connection;
@@ -28,9 +30,13 @@ use TYPO3\CMS\Core\Database\Query\Restriction\QueryRestrictionContainerInterface
 use TYPO3\CMS\Core\Database\Query\Restriction\RootLevelRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
 use TYPO3\CMS\Core\Exception;
+use TYPO3\CMS\Core\Http\CookieHeaderTrait;
 use TYPO3\CMS\Core\Session\Backend\Exception\SessionNotFoundException;
 use TYPO3\CMS\Core\Session\Backend\SessionBackendInterface;
 use TYPO3\CMS\Core\Session\SessionManager;
+use TYPO3\CMS\Core\SysLog\Action\Login as SystemLogLoginAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
+use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -45,6 +51,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 abstract class AbstractUserAuthentication implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
+    use CookieHeaderTrait;
 
     /**
      * Session/Cookie name
@@ -377,7 +384,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
             GeneralUtility::callUserFunction($funcName, $_params, $this);
         }
         // If we're lucky we'll get to clean up old sessions
-        if (rand() % 100 <= $this->gc_probability) {
+        if (random_int(0, mt_getrandmax()) % 100 <= $this->gc_probability) {
             $this->gc();
         }
     }
@@ -415,7 +422,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         $cacheControlHeader = 'no-cache, must-revalidate';
         $pragmaHeader = 'no-cache';
         // Prevent error message in IE when using a https connection
-        // see http://forge.typo3.org/issues/24125
+        // see https://forge.typo3.org/issues/24125
         if (strpos(GeneralUtility::getIndpEnv('HTTP_USER_AGENT'), 'MSIE') !== false
             && GeneralUtility::getIndpEnv('TYPO3_SSL')) {
             // Some IEs can not handle no-cache
@@ -448,9 +455,28 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
             $cookieExpire = $isRefreshTimeBasedCookie ? $GLOBALS['EXEC_TIME'] + $this->lifetime : 0;
             // Use the secure option when the current request is served by a secure connection:
             $cookieSecure = (bool)$settings['cookieSecure'] && GeneralUtility::getIndpEnv('TYPO3_SSL');
+            // Valid options are "strict", "lax" or "none", whereas "none" only works in HTTPS requests (default & fallback is "strict")
+            $cookieSameSite = $this->sanitizeSameSiteCookieValue(
+                strtolower($GLOBALS['TYPO3_CONF_VARS'][$this->loginType]['cookieSameSite'] ?? Cookie::SAMESITE_STRICT)
+            );
+            // SameSite "none" needs the secure option (only allowed on HTTPS)
+            if ($cookieSameSite === Cookie::SAMESITE_NONE) {
+                $cookieSecure = true;
+            }
             // Do not set cookie if cookieSecure is set to "1" (force HTTPS) and no secure channel is used:
             if ((int)$settings['cookieSecure'] !== 1 || GeneralUtility::getIndpEnv('TYPO3_SSL')) {
-                setcookie($this->name, $this->id, $cookieExpire, $cookiePath, $cookieDomain, $cookieSecure, true);
+                $cookie = new Cookie(
+                    $this->name,
+                    $this->id,
+                    $cookieExpire,
+                    $cookiePath,
+                    $cookieDomain,
+                    $cookieSecure,
+                    true,
+                    false,
+                    $cookieSameSite
+                );
+                header('Set-Cookie: ' . $cookie->__toString(), false);
                 $this->cookieWasSetOnCurrentRequest = true;
             } else {
                 throw new Exception('Cookie was not set since HTTPS was forced in $TYPO3_CONF_VARS[SYS][cookieSecure].', 1254325546);
@@ -553,7 +579,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         if ($loginData['status'] === LoginType::LOGOUT) {
             if ($this->writeStdLog) {
                 // $type,$action,$error,$details_nr,$details,$data,$tablename,$recuid,$recpid
-                $this->writelog(255, 2, 0, 2, 'User %s logged out', [$this->user['username']], '', 0, 0);
+                $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::LOGOUT, SystemLogErrorClassification::MESSAGE, 2, 'User %s logged out', [$this->user['username']], '', 0, 0);
             }
             $this->logger->info('User logged out. Id: ' . $this->id);
             $this->logoff();
@@ -727,7 +753,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
 
             // User logged in - write that to the log!
             if ($this->writeStdLog && $activeLogin) {
-                $this->writelog(255, 1, 0, 1, 'User %s logged in from ###IP###', [$tempuser[$this->username_column]], '', '', '');
+                $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::LOGIN, SystemLogErrorClassification::MESSAGE, 1, 'User %s logged in from ###IP###', [$tempuser[$this->username_column]], '', '', '');
             }
             if ($activeLogin) {
                 $this->logger->info('User ' . $tempuser[$this->username_column] . ' logged in from ' . GeneralUtility::getIndpEnv('REMOTE_ADDR'));
@@ -808,14 +834,14 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
      */
     protected function getAuthServices(string $subType, array $loginData, array $authInfo): \Traversable
     {
-        $serviceChain = '';
+        $serviceChain = [];
         while (is_object($serviceObj = GeneralUtility::makeInstanceService('auth', $subType, $serviceChain))) {
-            $serviceChain .= ',' . $serviceObj->getServiceKey();
+            $serviceChain[] = $serviceObj->getServiceKey();
             $serviceObj->initAuth($subType, $loginData, $authInfo, $this);
             yield $serviceObj;
         }
-        if ($serviceChain) {
-            $this->logger->debug($subType . ' auth services called: ' . $serviceChain);
+        if (!empty($serviceChain)) {
+            $this->logger->debug($subType . ' auth services called: ' . implode(', ', $serviceChain));
         }
     }
 
@@ -1135,7 +1161,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
     public function unpack_uc($theUC = '')
     {
         if (!$theUC && isset($this->user['uc'])) {
-            $theUC = unserialize($this->user['uc']);
+            $theUC = unserialize($this->user['uc'], ['allowed_classes' => false]);
         }
         if (is_array($theUC)) {
             $this->uc = $theUC;
@@ -1243,7 +1269,6 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
         if ($loginData['status'] === LoginType::LOGIN) {
             $loginData = $this->processLoginData($loginData);
         }
-        $loginData = array_map('trim', $loginData);
         return $loginData;
     }
 
@@ -1340,7 +1365,7 @@ abstract class AbstractUserAuthentication implements LoggerAwareInterface
      * @param int $type denotes which module that has submitted the entry. This is the current list:  1=tce_db; 2=tce_file; 3=system (eg. sys_history save); 4=modules; 254=Personal settings changed; 255=login / out action: 1=login, 2=logout, 3=failed login (+ errorcode 3), 4=failure_warning_email sent
      * @param int $action denotes which specific operation that wrote the entry (eg. 'delete', 'upload', 'update' and so on...). Specific for each $type. Also used to trigger update of the interface. (see the log-module for the meaning of each number !!)
      * @param int $error flag. 0 = message, 1 = error (user problem), 2 = System Error (which should not happen), 3 = security notice (admin)
-     * @param int $details_nr The message number. Specific for each $type and $action. in the future this will make it possible to translate errormessages to other languages
+     * @param int $details_nr The message number. Specific for each $type and $action. in the future this will make it possible to translate error messages to other languages
      * @param string $details Default text that follows the message
      * @param array $data Data that follows the log. Might be used to carry special information. If an array the first 5 entries (0-4) will be sprintf'ed the details-text...
      * @param string $tablename Special field used by tce_main.php. These ($tablename, $recuid, $recpid) holds the reference to the record which the log-entry is about. (Was used in attic status.php to update the interface.)

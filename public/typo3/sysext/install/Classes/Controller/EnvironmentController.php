@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Install\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,16 +15,21 @@ namespace TYPO3\CMS\Install\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Controller;
+
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Symfony\Component\Mime\NamedAddress;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Exception\RfcComplianceException;
+use TYPO3\CMS\Backend\Toolbar\Enumeration\InformationStatus;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
-use TYPO3\CMS\Core\Mail\MailMessage;
+use TYPO3\CMS\Core\Mail\FluidEmail;
+use TYPO3\CMS\Core\Mail\Mailer;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Utility\CommandUtility;
@@ -34,8 +39,10 @@ use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Install\FolderStructure\DefaultFactory;
 use TYPO3\CMS\Install\FolderStructure\DefaultPermissionsCheck;
+use TYPO3\CMS\Install\Service\LateBootService;
 use TYPO3\CMS\Install\SystemEnvironment\Check;
 use TYPO3\CMS\Install\SystemEnvironment\DatabaseCheck;
+use TYPO3\CMS\Install\SystemEnvironment\ServerResponse\ServerResponseCheck;
 use TYPO3\CMS\Install\SystemEnvironment\SetupCheck;
 
 /**
@@ -44,6 +51,17 @@ use TYPO3\CMS\Install\SystemEnvironment\SetupCheck;
  */
 class EnvironmentController extends AbstractController
 {
+    /**
+     * @var LateBootService
+     */
+    private $lateBootService;
+
+    public function __construct(
+        LateBootService $lateBootService
+    ) {
+        $this->lateBootService = $lateBootService;
+    }
+
     /**
      * Main "show the cards" view
      *
@@ -69,9 +87,11 @@ class EnvironmentController extends AbstractController
     {
         $view = $this->initializeStandaloneView($request, 'Environment/SystemInformation.html');
         $view->assignMultiple([
-            'systemInformationCgiDetected', GeneralUtility::isRunningOnCgiServerApi(),
+            'systemInformationCgiDetected' => Environment::isRunningOnCgiServer(),
             'systemInformationDatabaseConnections' => $this->getDatabaseConnectionInformation(),
             'systemInformationOperatingSystem' => Environment::isWindows() ? 'Windows' : 'Unix',
+            'systemInformationApplicationContext' => $this->getApplicationContextInformation(),
+            'phpVersion' => PHP_VERSION,
         ]);
         return new JsonResponse([
             'success' => true,
@@ -114,6 +134,10 @@ class EnvironmentController extends AbstractController
         }
         $databaseMessages = (new DatabaseCheck())->getStatus();
         foreach ($databaseMessages as $message) {
+            $messageQueue->enqueue($message);
+        }
+        $serverResponseMessages = (new ServerResponseCheck(false))->getStatus();
+        foreach ($serverResponseMessages as $message) {
             $messageQueue->enqueue($message);
         }
         return new JsonResponse([
@@ -233,9 +257,10 @@ class EnvironmentController extends AbstractController
      */
     public function mailTestAction(ServerRequestInterface $request): ResponseInterface
     {
+        $container = $this->lateBootService->getContainer();
+        $backup = $this->lateBootService->makeCurrent($container);
         $messages = new FlashMessageQueue('install');
         $recipient = $request->getParsedBody()['install']['email'];
-        $delivered = false;
         if (empty($recipient) || !GeneralUtility::validEmail($recipient)) {
             $messages->enqueue(new FlashMessage(
                 'Given address is not a valid email address.',
@@ -244,20 +269,25 @@ class EnvironmentController extends AbstractController
             ));
         } else {
             try {
-                $mailMessage = GeneralUtility::makeInstance(MailMessage::class);
+                $variables = [
+                    'headline' => 'TYPO3 Test Mail',
+                    'introduction' => 'Hey TYPO3 Administrator',
+                    'content' => 'Seems like your favorite TYPO3 installation can send out emails!'
+                ];
+                $mailMessage = GeneralUtility::makeInstance(FluidEmail::class);
                 $mailMessage
                     ->to($recipient)
-                    ->from(new NamedAddress($this->getSenderEmailAddress(), $this->getSenderEmailName()))
+                    ->from(new Address($this->getSenderEmailAddress(), $this->getSenderEmailName()))
                     ->subject($this->getEmailSubject())
-                    ->html('<html><body>html test content</body></html>')
-                    ->text('plain test content')
-                    ->send();
+                    ->setRequest($request)
+                    ->assignMultiple($variables);
+
+                GeneralUtility::makeInstance(Mailer::class)->send($mailMessage);
                 $messages->enqueue(new FlashMessage(
                     'Recipient: ' . $recipient,
                     'Test mail sent'
                 ));
-                $delivered = true;
-            } catch (\Symfony\Component\Mime\Exception\RfcComplianceException $exception) {
+            } catch (RfcComplianceException $exception) {
                 $messages->enqueue(new FlashMessage(
                     'Please verify $GLOBALS[\'TYPO3_CONF_VARS\'][\'MAIL\'][\'defaultMailFromAddress\'] is a valid mail address.'
                     . ' Error message: ' . $exception->getMessage(),
@@ -273,6 +303,7 @@ class EnvironmentController extends AbstractController
                 ));
             }
         }
+        $this->lateBootService->makeCurrent(null, $backup);
         return new JsonResponse([
             'success' => true,
             'status' => $messages,
@@ -322,7 +353,7 @@ class EnvironmentController extends AbstractController
         $textColor = imagecolorallocate($image, 233, 14, 91);
         @imagettftext(
             $image,
-            20 / 96.0 * 72, // As in  compensateFontSizeiBasedOnFreetypeDpi
+            20 / 96.0 * 72, // As in  compensateFontSizeBasedOnFreetypeDpi
             0,
             10,
             20,
@@ -895,8 +926,8 @@ class EnvironmentController extends AbstractController
         $string = $result[0];
         $version = '';
         if (!empty($string)) {
-            list(, $version) = explode('Magick', $string);
-            list($version) = explode(' ', trim($version));
+            [, $version] = explode('Magick', $string);
+            [$version] = explode(' ', trim($version));
             $version = trim($version);
         }
         return $version;
@@ -963,9 +994,9 @@ class EnvironmentController extends AbstractController
                 'connectionName' => $connectionName,
                 'version' => $connection->getServerVersion(),
                 'databaseName' => $connection->getDatabase(),
-                'username' => $connection->getUsername(),
-                'host' => $connection->getHost(),
-                'port' => $connection->getPort(),
+                'username' => $connectionParameters['user'],
+                'host' => $connectionParameters['host'],
+                'port' => $connectionParameters['port'],
                 'socket' => $connectionParameters['unix_socket'] ?? '',
                 'numberOfTables' => count($connection->getSchemaManager()->listTableNames()),
                 'numberOfMappedTables' => 0,
@@ -982,6 +1013,22 @@ class EnvironmentController extends AbstractController
             $connectionInfos[] = $connectionInfo;
         }
         return $connectionInfos;
+    }
+
+    /**
+     * Get details about the application context
+     *
+     * @return array
+     */
+    protected function getApplicationContextInformation(): array
+    {
+        $applicationContext = Environment::getContext();
+        $status = $applicationContext->isProduction() ? InformationStatus::STATUS_OK : InformationStatus::STATUS_WARNING;
+
+        return [
+            'context' => (string)$applicationContext,
+            'status' => $status,
+        ];
     }
 
     /**

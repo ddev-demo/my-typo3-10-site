@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Configuration\TypoScript\ConditionMatching;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,22 +13,24 @@ namespace TYPO3\CMS\Core\Configuration\TypoScript\ConditionMatching;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Configuration\TypoScript\ConditionMatching;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Symfony\Component\ExpressionLanguage\SyntaxError;
 use TYPO3\CMS\Core\Configuration\TypoScript\Exception\InvalidTypoScriptConditionException;
 use TYPO3\CMS\Core\Error\Exception;
+use TYPO3\CMS\Core\Exception\MissingTsfeException;
 use TYPO3\CMS\Core\ExpressionLanguage\Resolver;
-use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Matching TypoScript conditions
  *
  * Used with the TypoScript parser.
- * Matches IPnumbers etc. for use with templates
+ * Matches IP numbers etc. for use with templates
  */
-abstract class AbstractConditionMatcher implements LoggerAwareInterface
+abstract class AbstractConditionMatcher implements LoggerAwareInterface, ConditionMatcherInterface
 {
     use LoggerAwareTrait;
 
@@ -56,7 +57,7 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
     protected $simulateMatchResult = false;
 
     /**
-     * Whether to simulat the behaviour and match specific conditions
+     * Whether to simulate the behaviour and match specific conditions
      * (used in TypoScript object browser).
      *
      * @var array
@@ -193,9 +194,13 @@ abstract class AbstractConditionMatcher implements LoggerAwareInterface
             if ($result !== null) {
                 return $result;
             }
+        } catch (MissingTsfeException $e) {
+            // TSFE is not available in the current context (e.g. TSFE in BE context),
+            // we set all conditions false for this case.
+            return false;
         } catch (SyntaxError $exception) {
             $message = 'Expression could not be parsed.';
-            $this->logger->log(LogLevel::ERROR, $message, ['expression' => $expression]);
+            $this->logger->error($message, ['expression' => $expression]);
         } catch (\Throwable $exception) {
             // The following error handling is required to mitigate a missing type check
             // in the Symfony Expression Language handling. In case a condition

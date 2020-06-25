@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Cache;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Cache;
+
 use TYPO3\CMS\Core\Cache\Backend\BackendInterface;
 use TYPO3\CMS\Core\Cache\Backend\NullBackend;
+use TYPO3\CMS\Core\Cache\Backend\TransientMemoryBackend;
 use TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend;
 use TYPO3\CMS\Core\Cache\Exception\DuplicateIdentifierException;
 use TYPO3\CMS\Core\Cache\Exception\InvalidBackendException;
@@ -91,6 +93,8 @@ class CacheManager implements SingletonInterface
      */
     public function setCacheConfigurations(array $cacheConfigurations)
     {
+        $newConfiguration = [];
+        $migratedConfiguration = [];
         foreach ($cacheConfigurations as $identifier => $configuration) {
             if (!is_array($configuration)) {
                 throw new \InvalidArgumentException('The cache configuration for cache "' . $identifier . '" was not an array as expected.', 1231259656);
@@ -99,9 +103,12 @@ class CacheManager implements SingletonInterface
             if (strpos($identifier, 'cache_') === 0) {
                 trigger_error('Accessing a cache with the "cache_" prefix as in "' . $identifier . '" is not necessary anymore, and should be called without the cache prefix.', E_USER_DEPRECATED);
                 $identifier = substr($identifier, 6);
+                $migratedConfiguration[$identifier] = $configuration;
+            } else {
+                $newConfiguration[$identifier] = $configuration;
             }
-            $this->cacheConfigurations[$identifier] = $configuration;
         }
+        $this->cacheConfigurations = array_replace_recursive($newConfiguration, $migratedConfiguration);
     }
 
     /**
@@ -305,7 +312,7 @@ class CacheManager implements SingletonInterface
             $backendOptions = $this->defaultCacheConfiguration['options'];
         }
 
-        if ($this->disableCaching) {
+        if ($this->disableCaching && $backend !== TransientMemoryBackend::class) {
             $backend = NullBackend::class;
             $backendOptions = [];
         }

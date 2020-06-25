@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Fluid\ViewHelpers\Be;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -49,7 +50,6 @@ class PagePathViewHelper extends AbstractBackendViewHelper
      * Renders the current page path
      *
      * @return string the rendered page path
-     * @see \TYPO3\CMS\Backend\Template\DocumentTemplate::getPagePath() Note: can't call this method as it's protected!
      */
     public function render()
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Info\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,15 @@ namespace TYPO3\CMS\Info\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Info\Controller;
+
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Tree\View\PageTreeView;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
-use TYPO3\CMS\Core\Database\Query\Restriction\BackendWorkspaceRestriction;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -150,7 +151,7 @@ class TranslationStatusController
     /**
      * Rendering the localization information table.
      *
-     * @param array $tree The Page tree data
+     * @param PageTreeView $tree The Page tree data
      * @return string HTML for the localization information table.
      */
     protected function renderL10nTable(&$tree)
@@ -346,14 +347,8 @@ class TranslationStatusController
                     $editButton = '';
                 }
                 // Create new overlay records:
-                $createLink = (string)$uriBuilder->buildUriFromRoute('record_edit', [
-                    'columnsOnly' => 'title,hidden,sys_language_uid',
-                    'overrideVals' => [
-                        'pages' => [
-                            'sys_language_uid' => $languageId,
-                        ],
-                    ],
-                    'returnUrl' => GeneralUtility::getIndpEnv('REQUEST_URI')
+                $createLink = (string)$uriBuilder->buildUriFromRoute('tce_db', [
+                    'redirect' => GeneralUtility::getIndpEnv('REQUEST_URI')
                 ]);
                 $newButton = '<a href="' . htmlspecialchars($createLink) . '" data-edit-url="' . htmlspecialchars($createLink) . '" class="btn btn-default disabled t3js-language-new-' . $languageId . '" title="' . $lang->sL(
                     'LLL:EXT:info/Resources/Private/Language/locallang_webinfo.xlf:lang_getlangsta_createNewTranslationHeaders'
@@ -394,7 +389,7 @@ class TranslationStatusController
         $queryBuilder
             ->getRestrictions()
             ->removeAll()
-            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class))
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getBackendUser()->workspace))
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
         $result = $queryBuilder
             ->select('*')
@@ -437,7 +432,7 @@ class TranslationStatusController
         $queryBuilder->getRestrictions()
             ->removeAll()
             ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
+            ->add(GeneralUtility::makeInstance(WorkspaceRestriction::class, (int)$this->getBackendUser()->workspace));
         $count = $queryBuilder
             ->count('uid')
             ->from('tt_content')

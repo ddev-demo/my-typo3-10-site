@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Frontend\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Imaging;
+
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
+use TYPO3\CMS\Core\Resource\Exception;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -125,7 +127,8 @@ class GifBuilder extends GraphicalFunctions
             // line as TEXT obj, see extension julle_gifbconf
             foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tslib/class.tslib_gifbuilder.php']['gifbuilder-ConfPreProcess'] ?? [] as $_funcRef) {
                 $_params = $this->setup;
-                $this->setup = GeneralUtility::callUserFunction($_funcRef, $_params, $this);
+                $ref = $this; // introduced for phpstan to not lose type information when passing $this into callUserFunction
+                $this->setup = GeneralUtility::callUserFunction($_funcRef, $_params, $ref);
             }
             // Initializing global Char Range Map
             $this->charRangeMap = [];
@@ -402,7 +405,7 @@ class GifBuilder extends GraphicalFunctions
             $Bcolor = imagecolorallocate($this->im, $BGcols[0], $BGcols[1], $BGcols[2]);
             imagefilledrectangle($this->im, 0, 0, $XY[0], $XY[1], $Bcolor);
         }
-        // Traverse the GIFBUILDER objects an render each one:
+        // Traverse the GIFBUILDER objects and render each one:
         if (is_array($this->setup)) {
             $sKeyArray = ArrayUtility::filterAndSortByNumericKeys($this->setup);
             foreach ($sKeyArray as $theKey) {
@@ -575,7 +578,7 @@ class GifBuilder extends GraphicalFunctions
         if (!$conf['fontSize']) {
             $conf['fontSize'] = 12;
         }
-        // If any kind of spacing applys, we cannot use angles!!
+        // If any kind of spacing applies, we cannot use angles!!
         if ($conf['spacing'] || $conf['wordSpacing']) {
             $conf['angle'] = 0;
         }
@@ -694,7 +697,7 @@ class GifBuilder extends GraphicalFunctions
     {
         try {
             return GeneralUtility::makeInstance(FilePathSanitizer::class)->sanitize($file);
-        } catch (\TYPO3\CMS\Core\Resource\Exception $e) {
+        } catch (Exception $e) {
             return null;
         }
     }
@@ -711,7 +714,6 @@ class GifBuilder extends GraphicalFunctions
      */
     public function fileName($pre)
     {
-        /** @var \TYPO3\CMS\Core\Utility\File\BasicFileUtility $basicFileFunctions */
         $basicFileFunctions = GeneralUtility::makeInstance(BasicFileUtility::class);
         $filePrefix = implode('_', array_merge($this->combinedTextStrings, $this->combinedFileNames));
         $filePrefix = $basicFileFunctions->cleanFileName(ltrim($filePrefix, '.'));
@@ -719,7 +721,21 @@ class GifBuilder extends GraphicalFunctions
         // shorten prefix to avoid overly long file names
         $filePrefix = substr($filePrefix, 0, 100);
 
-        return 'typo3temp/' . $pre . $filePrefix . '_' . GeneralUtility::shortMD5(serialize($this->setup)) . '.' . $this->extension();
+        // Only take relevant parameters to ease the pain for json_encode and make the final string short
+        // so shortMD5 is not as slow. see https://forge.typo3.org/issues/64158
+        $hashInputForFileName = [
+            array_keys($this->setup),
+            $filePrefix,
+            $this->im,
+            $this->w,
+            $this->h,
+            $this->map,
+            $this->workArea,
+            $this->combinedTextStrings,
+            $this->combinedFileNames,
+            $this->data
+        ];
+        return 'typo3temp/' . $pre . $filePrefix . '_' . GeneralUtility::shortMD5(json_encode($hashInputForFileName)) . '.' . $this->extension();
     }
 
     /**
@@ -813,7 +829,7 @@ class GifBuilder extends GraphicalFunctions
      * Calculates the maximum of a set of values defined like "[10.h],[20.h],1000"
      *
      * @param string $string The string to be used to calculate the maximum (e.g. "[10.h],[20.h],1000")
-     * @return int The maxium value of the given comma separated and calculated values
+     * @return int The maximum value of the given comma separated and calculated values
      */
     protected function calculateMaximum($string)
     {

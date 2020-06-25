@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Persistence\Generic\Qom;
 
 use TYPO3\CMS\Extbase\Persistence\QueryInterface;
 
@@ -40,7 +41,7 @@ use TYPO3\CMS\Extbase\Persistence\QueryInterface;
  * The OPERATOR_NOT_EQUAL_TO operator is satisfied unless the value of
  * operand1 equals the value of operand2.
  *
- * The OPERATOR_LESSS_THAN operator is satisfied only if the value of
+ * The OPERATOR_LESS_THAN operator is satisfied only if the value of
  * operand1 is ordered before the value of operand2.
  *
  * The OPERATOR_LESS_THAN_OR_EQUAL_TO operator is satisfied unless the value
@@ -134,7 +135,7 @@ class Comparison implements ComparisonInterface
     /**
      * Fills an array with the names of all bound variables in the constraints
      *
-     * @param array &$boundVariables
+     * @param array $boundVariables
      */
     public function collectBoundVariableNames(&$boundVariables)
     {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\TimeTracker;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,10 +12,14 @@ namespace TYPO3\CMS\Core\TimeTracker;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\TimeTracker;
+
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * Frontend Timetracking functions
@@ -377,8 +380,8 @@ class TimeTracker implements SingletonInterface
         foreach ($this->tsStackLog as $uniqueId => $data) {
             $this->createHierarchyArray($arr, $data['level'], $uniqueId);
         }
-        // Parsing the registeret content and create icon-html for the tree
-        $this->tsStackLog[$arr['0.'][0]]['content'] = $this->fixContent($arr['0.'], $this->tsStackLog[$arr['0.'][0]]['content'], '', $arr['0.'][0]);
+        // Parsing the registered content and create icon-html for the tree
+        $this->tsStackLog[$arr['0.'][0]]['content'] = $this->fixContent($arr['0.'], $this->tsStackLog[$arr['0.'][0]]['content'] ?? '', '', $arr['0.'][0]);
         // Displaying the tree:
         $outputArr = [];
         $outputArr[] = $this->fw('TypoScript Key');
@@ -419,13 +422,13 @@ class TimeTracker implements SingletonInterface
             if (!$flag_tree && $data['stackPointer']) {
                 $temp = [];
                 foreach ($data['tsStack'] as $k => $v) {
-                    $temp[] = GeneralUtility::fixed_lgd_cs(implode($v, $k ? '.' : '/'), -$keyLgd);
+                    $temp[] = GeneralUtility::fixed_lgd_cs(implode($k ? '.' : '/', $v), -$keyLgd);
                 }
                 array_pop($temp);
                 $temp = array_reverse($temp);
                 array_pop($temp);
                 if (!empty($temp)) {
-                    $keyLabel = '<br /><span style="color:#999999;">' . implode($temp, '<br />') . '</span>';
+                    $keyLabel = '<br /><span style="color:#999999;">' . implode('<br />', $temp) . '</span>';
                 }
             }
             if ($flag_tree) {
@@ -469,7 +472,7 @@ class TimeTracker implements SingletonInterface
                 $msgArr[] = nl2br($data['content']);
             }
             if (!empty($msgArr)) {
-                $msg = implode($msgArr, '<hr />');
+                $msg = implode('<hr />', $msgArr);
             }
             $item .= '<td class="typo3-adminPanel-table-cell-content">' . $this->fw($msg) . '</td>';
             $out .= '<tr>' . $item . '</tr>';
@@ -490,31 +493,32 @@ class TimeTracker implements SingletonInterface
      */
     protected function fixContent(&$arr, $content, $depthData = '', $vKey = '')
     {
-        $ac = 0;
+        $entriesCount = 0;
         $c = 0;
         // First, find number of entries
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
-                $ac++;
+            //do not count subentries (the one ending with dot, eg. '9.'
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
+                $entriesCount++;
             }
         }
         // Traverse through entries
         $subtime = 0;
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
                 $c++;
-                $deeper = isset($arr[$k . '.']);
-                $LN = $ac == $c ? 'blank' : 'line';
+                $hasChildren = isset($arr[$k . '.']);
+                $lastEntry = $entriesCount === $c;
 
-                $BTM = $ac == $c ? 'bottom' : '';
-                $PM = $deeper ? '<i class="fa fa-' . ($deeper ? 'minus' : 'plus') . '-square-o"></i>' : '<span class="treeline-icon treeline-icon-join' . ($BTM ? 'bottom' : '') . '"></span>';
+                $PM = '<span class="treeline-icon treeline-icon-join' . ($lastEntry ? 'bottom' : '') . '"></span>';
 
                 $this->tsStackLog[$v]['icons'] = $depthData . $PM;
                 if ($this->tsStackLog[$v]['content'] !== '') {
                     $content = str_replace($this->tsStackLog[$v]['content'], $v, $content);
                 }
-                if ($deeper) {
-                    $this->tsStackLog[$v]['content'] = $this->fixContent($arr[$k . '.'], $this->tsStackLog[$v]['content'], $depthData . '<span class="treeline-icon treeline-icon-' . $LN . '"></span>', $v);
+                if ($hasChildren) {
+                    $lineClass = $lastEntry ? 'treeline-icon-clear' : 'treeline-icon-line';
+                    $this->tsStackLog[$v]['content'] = $this->fixContent($arr[$k . '.'], $this->tsStackLog[$v]['content'], $depthData . '<span class="treeline-icon ' . $lineClass . '"></span>', $v);
                 } else {
                     $this->tsStackLog[$v]['content'] = $this->fixCLen($this->tsStackLog[$v]['content'], $this->tsStackLog[$v]['value']);
                     $this->tsStackLog[$v]['subtime'] = '';
@@ -531,7 +535,7 @@ class TimeTracker implements SingletonInterface
         $content = $this->fixCLen($content, $this->tsStackLog[$vKey]['value']);
         // Traverse array again, this time substitute the unique hash with the red key
         foreach ($arr as $k => $v) {
-            if (\TYPO3\CMS\Core\Utility\MathUtility::canBeInterpretedAsInteger($k)) {
+            if (MathUtility::canBeInterpretedAsInteger($k)) {
                 if ($this->tsStackLog[$v]['content'] !== '') {
                     $content = str_replace($v, '<strong style="color:red;">[' . $this->tsStackLog[$v]['key'] . ']</strong>', $content);
                 }
@@ -542,7 +546,7 @@ class TimeTracker implements SingletonInterface
     }
 
     /**
-     * Wraps the input content string in green colored span-tags IF the length o fthe input string exceeds $this->printConf['contentLength'] (or $this->printConf['contentLength_FILE'] if $v == "FILE"
+     * Wraps the input content string in green colored span-tags IF the length of the input string exceeds $this->printConf['contentLength'] (or $this->printConf['contentLength_FILE'] if $v == "FILE"
      *
      * @param string $c The content string
      * @param string $v Command: If "FILE" then $this->printConf['contentLength_FILE'] is used for content length comparison, otherwise $this->printConf['contentLength']

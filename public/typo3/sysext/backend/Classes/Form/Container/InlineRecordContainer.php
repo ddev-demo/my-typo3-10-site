@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Container;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,13 @@ namespace TYPO3\CMS\Backend\Form\Container;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\Container;
+
 use TYPO3\CMS\Backend\Form\Element\InlineElementHookInterface;
 use TYPO3\CMS\Backend\Form\Exception\AccessDeniedContentEditException;
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\NodeFactory;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\ConnectionPool;
@@ -122,7 +124,7 @@ class InlineRecordContainer extends AbstractContainer
         // Get the current naming scheme for DOM name/id attributes:
         $appendFormFieldNames = '[' . $foreignTable . '][' . $record['uid'] . ']';
         $objectId = $domObjectId . '-' . $foreignTable . '-' . $record['uid'];
-        $class = '';
+        $classes = [];
         $html = '';
         $combinationHtml = '';
         $isNewRecord = $data['command'] === 'new';
@@ -143,8 +145,8 @@ class InlineRecordContainer extends AbstractContainer
                 $html = $childArray['html'];
                 $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $childArray, false);
             } else {
-                // This string is the marker for the JS-function to check if the full content has already been loaded
-                $html = '<!--notloaded-->';
+                // This class is the marker for the JS-function to check if the full content has already been loaded
+                $classes[] = 't3js-not-loaded';
             }
             if ($isNewRecord) {
                 // Add pid of record as hidden field
@@ -171,7 +173,7 @@ class InlineRecordContainer extends AbstractContainer
                 }
             }
             // If this record should be shown collapsed
-            $class = $data['isInlineChildExpanded'] ? 'panel-visible' : 'panel-collapsed';
+            $classes[] = $data['isInlineChildExpanded'] ? 'panel-visible' : 'panel-collapsed';
         }
         $hiddenFieldHtml = implode(LF, $resultArray['additionalHiddenFields'] ?? []);
 
@@ -181,22 +183,30 @@ class InlineRecordContainer extends AbstractContainer
         } else {
             // Render header row and content (if expanded)
             if ($data['isInlineDefaultLanguageRecordInLocalizedParentContext']) {
-                $class .= ' t3-form-field-container-inline-placeHolder';
+                $classes[] = 't3-form-field-container-inline-placeHolder';
             }
             if (!empty($hiddenField) && isset($record[$hiddenField]) && (int)$record[$hiddenField]) {
-                $class .= ' t3-form-field-container-inline-hidden';
+                $classes[] = 't3-form-field-container-inline-hidden';
             }
-            $class .= ($isNewRecord ? ' inlineIsNewRecord' : '');
+            if ($isNewRecord) {
+                $classes[] = 'inlineIsNewRecord';
+            }
 
+            $originalUniqueValue = '';
+            if (isset($data['inlineData']['unique'][$domObjectId . '-' . $foreignTable]['used'][$record['uid']])) {
+                $uniqueValueValues = $data['inlineData']['unique'][$domObjectId . '-' . $foreignTable]['used'][$record['uid']];
+                // in case of site_language we don't have the full form engine options, so fallbacks need to be taken into account
+                $originalUniqueValue = ($uniqueValueValues['table'] ?? $foreignTable) . '_' . ($uniqueValueValues['uid'] ?? $uniqueValueValues);
+            }
             $containerAttributes = [
                 'id' => $objectId . '_div',
-                'class' => 'form-irre-object panel panel-default panel-condensed ' . trim($class),
+                'class' => 'form-irre-object panel panel-default panel-condensed ' . trim(implode(' ', $classes)),
                 'data-object-uid' => $record['uid'],
                 'data-object-id' => $objectId,
                 'data-field-name' => $appendFormFieldNames,
                 'data-topmost-parent-table' => $data['inlineTopMostParentTableName'],
                 'data-topmost-parent-uid' => $data['inlineTopMostParentUid'],
-                'data-table-unique-original-value' => $data['inlineData']['unique'][$domObjectId . '-' . $foreignTable]['used'][$record['uid']] ?? '',
+                'data-table-unique-original-value' => $originalUniqueValue,
             ];
 
             $html = '
@@ -345,7 +355,7 @@ class InlineRecordContainer extends AbstractContainer
 
             if (!empty($fileUid)) {
                 try {
-                    $fileObject = ResourceFactory::getInstance()->getFileObject($fileUid);
+                    $fileObject = GeneralUtility::makeInstance(ResourceFactory::class)->getFileObject($fileUid);
                 } catch (\InvalidArgumentException $e) {
                     $fileObject = null;
                 }
@@ -361,8 +371,7 @@ class InlineRecordContainer extends AbstractContainer
                     }
                     $imageSetup = array_merge(['width' => '45', 'height' => '45c'], $imageSetup);
 
-                    if ($GLOBALS['TYPO3_CONF_VARS']['GFX']['thumbnails']
-                        && GeneralUtility::inList($GLOBALS['TYPO3_CONF_VARS']['GFX']['imagefile_ext'], $fileObject->getExtension())) {
+                    if ($GLOBALS['TYPO3_CONF_VARS']['GFX']['thumbnails'] && $fileObject->isImage()) {
                         $processedImage = $fileObject->process(ProcessedFile::CONTEXT_IMAGEPREVIEW, $imageSetup);
                         // Only use a thumbnail if the processing process was successful by checking if image width is set
                         if ($processedImage->getProperty('width')) {
@@ -534,7 +543,7 @@ class InlineRecordContainer extends AbstractContainer
                     ->execute()
                     ->fetch();
                 if (!empty($recordInDatabase)) {
-                    $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+                    $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
                     $url = (string)$uriBuilder->buildUriFromRoute('record_edit', [
                         'edit[sys_file_metadata][' . (int)$recordInDatabase['uid'] . ']' => 'edit',
                         'returnUrl' => $this->data['returnUrl']

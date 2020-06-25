@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,19 +13,22 @@ namespace TYPO3\CMS\Core\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database;
+
 use Doctrine\DBAL\DBALException;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LogLevel;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\ProgressListenerInterface;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Database\Platform\PlatformInformation;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
-use TYPO3\CMS\Core\Messaging\FlashMessage;
-use TYPO3\CMS\Core\Messaging\FlashMessageRendererResolver;
+use TYPO3\CMS\Core\DataHandling\Event\IsTableExcludedFromReferenceIndexEvent;
 use TYPO3\CMS\Core\Registry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Reference index processing and relation extraction
@@ -102,15 +104,6 @@ class ReferenceIndex implements LoggerAwareInterface
     public $temp_flexRelations = [];
 
     /**
-     * This variable used to indicate whether referencing should take workspace overlays into account
-     * It is not used since commit 0c34dac08605ba from 10.04.2006, the bug is investigated in https://forge.typo3.org/issues/65725
-     *
-     * @var bool
-     * @see getRelations()
-     */
-    public $WSOL = false;
-
-    /**
      * An index of all found references of a single record created in createEntryData() and accumulated in generateRefIndexData()
      *
      * @var array
@@ -156,10 +149,16 @@ class ReferenceIndex implements LoggerAwareInterface
     protected $useRuntimeCache = false;
 
     /**
-     * Constructor
+     * @var EventDispatcherInterface
      */
-    public function __construct()
+    protected $eventDispatcher;
+
+    /**
+     * @param EventDispatcherInterface $eventDispatcher
+     */
+    public function __construct(EventDispatcherInterface $eventDispatcher = null)
     {
+        $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::getContainer()->get(EventDispatcherInterface::class);
         $this->runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('runtime');
     }
 
@@ -200,10 +199,6 @@ class ReferenceIndex implements LoggerAwareInterface
      */
     public function updateRefIndexTable($tableName, $uid, $testOnly = false)
     {
-        // First, secure that the index table is not updated with workspace tainted relations:
-        $this->WSOL = false;
-
-        // Init:
         $result = [
             'keptNodes' => 0,
             'deletedNodes' => 0,
@@ -222,11 +217,12 @@ class ReferenceIndex implements LoggerAwareInterface
 
         // Fetch tableRelationFields and save them in cache if not there yet
         $cacheId = static::$cachePrefixTableRelationFields . $tableName;
-        if (!$this->useRuntimeCache || !$this->runtimeCache->has($cacheId)) {
+        $tableRelationFields = $this->useRuntimeCache ? $this->runtimeCache->get($cacheId) : false;
+        if ($tableRelationFields === false) {
             $tableRelationFields = $this->fetchTableRelationFields($tableName);
-            $this->runtimeCache->set($cacheId, $tableRelationFields);
-        } else {
-            $tableRelationFields = $this->runtimeCache->get($cacheId);
+            if ($this->useRuntimeCache) {
+                $this->runtimeCache->set($cacheId, $tableRelationFields);
+            }
         }
 
         $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
@@ -315,7 +311,7 @@ class ReferenceIndex implements LoggerAwareInterface
 
     /**
      * Returns array of arrays with an index of all references found in record from table/uid
-     * If the result is used to update the sys_refindex table then ->WSOL must NOT be TRUE (no workspace overlay anywhere!)
+     * If the result is used to update the sys_refindex table then no workspaces must be applied (no workspace overlay anywhere!)
      *
      * @param string $tableName Table name from $GLOBALS['TCA']
      * @param int $uid Record UID
@@ -539,7 +535,7 @@ class ReferenceIndex implements LoggerAwareInterface
     protected function createEntryDataForDatabaseRelationsUsingRecord(string $tableName, array $record, string $fieldName, string $flexPointer, int $deleted, array $items)
     {
         foreach ($items as $sort => $i) {
-            $this->relations[] = $this->createEntryDataUsingRecord($tableName, $record, $fieldName, $flexPointer, $deleted, $i['table'], $i['id'], '', $sort);
+            $this->relations[] = $this->createEntryDataUsingRecord($tableName, $record, $fieldName, $flexPointer, $deleted, $i['table'], (int)$i['id'], '', $sort);
         }
     }
 
@@ -587,8 +583,8 @@ class ReferenceIndex implements LoggerAwareInterface
                     if (is_array($el['subst'])) {
                         switch ((string)$el['subst']['type']) {
                             case 'db':
-                                list($referencedTable, $referencedUid) = explode(':', $el['subst']['recordRef']);
-                                $this->relations[] = $this->createEntryDataUsingRecord($tableName, $record, $fieldName, $flexPointer, $deleted, $referencedTable, $referencedUid, '', -1, $spKey, $subKey);
+                                [$referencedTable, $referencedUid] = explode(':', $el['subst']['recordRef']);
+                                $this->relations[] = $this->createEntryDataUsingRecord($tableName, $record, $fieldName, $flexPointer, $deleted, $referencedTable, (int)$referencedUid, '', -1, $spKey, $subKey);
                                 break;
                             case 'string':
                                 $this->relations[] = $this->createEntryDataUsingRecord($tableName, $record, $fieldName, $flexPointer, $deleted, '_STRING', 0, $el['subst']['tokenValue'], -1, $spKey, $subKey);
@@ -703,7 +699,7 @@ class ReferenceIndex implements LoggerAwareInterface
         $structurePath = substr($structurePath, 5) . '/';
         $dsConf = $dsArr['TCEforms']['config'];
         // Implode parameter values:
-        list($table, $uid, $field) = [
+        [$table, $uid, $field] = [
             $PA['table'],
             $PA['uid'],
             $PA['field']
@@ -927,7 +923,7 @@ class ReferenceIndex implements LoggerAwareInterface
             if ($newValue === null) {
                 unset($itemArray[$refRec['sorting']]);
             } else {
-                list($itemArray[$refRec['sorting']]['table'], $itemArray[$refRec['sorting']]['id']) = explode(':', $newValue);
+                [$itemArray[$refRec['sorting']]['table'], $itemArray[$refRec['sorting']]['id']] = explode(':', $newValue);
             }
             // Traverse and compile new list of records:
             $saveValue = [];
@@ -953,7 +949,7 @@ class ReferenceIndex implements LoggerAwareInterface
      * Setting a value for a soft reference token
      *
      * @param array $refRec sys_refindex record
-     * @param array $softref Array of soft reference occurencies
+     * @param array $softref Array of soft reference occurrences
      * @param string $newValue Value to substitute current value with
      * @param array $dataArray Data array in which the new value is set (passed by reference)
      * @param string $flexPointer Flexform pointer, if in a flex form field.
@@ -1067,15 +1063,25 @@ class ReferenceIndex implements LoggerAwareInterface
      * Updating Index (External API)
      *
      * @param bool $testOnly If set, only a test
-     * @param bool $cli_echo If set, output CLI status
+     * @param bool|ProgressListenerInterface|null $cli_echo If set, output CLI status - but can now be of type ProgressListenerInterface, which should be used instead.
      * @return array Header and body status content
      */
-    public function updateIndex($testOnly, $cli_echo = false)
+    public function updateIndex($testOnly, $cli_echo = null)
     {
+        $progressListener = null;
+        if ($cli_echo instanceof ProgressListenerInterface) {
+            $progressListener = $cli_echo;
+            $cli_echo = null;
+        }
+        if ($cli_echo !== null) {
+            trigger_error('The second argument of ReferenceIndex->updateIndex() will not work in TYPO3 v11 anymore. Use the ProgressListener to show detailed results', E_USER_DEPRECATED);
+        } else {
+            // default value for now
+            $cli_echo = false;
+        }
         $errors = [];
         $tableNames = [];
         $recCount = 0;
-        $tableCount = 0;
         $headerContent = $testOnly ? 'Reference Index being TESTED (nothing written, remove the "--check" argument)' : 'Reference Index being Updated';
         if ($cli_echo) {
             echo '*******************************************' . LF . $headerContent . LF . '*******************************************' . LF;
@@ -1115,9 +1121,14 @@ class ReferenceIndex implements LoggerAwareInterface
                 continue;
             }
 
+            if ($progressListener) {
+                $progressListener->start($queryResult->rowCount(), $tableName);
+            }
             $tableNames[] = $tableName;
-            $tableCount++;
             while ($record = $queryResult->fetch()) {
+                if ($progressListener) {
+                    $progressListener->advance();
+                }
                 $refIndexObj = GeneralUtility::makeInstance(self::class);
                 if (isset($record['t3ver_wsid'])) {
                     $refIndexObj->setWorkspaceId($record['t3ver_wsid']);
@@ -1127,10 +1138,16 @@ class ReferenceIndex implements LoggerAwareInterface
                 if ($result['addedNodes'] || $result['deletedNodes']) {
                     $error = 'Record ' . $tableName . ':' . $record['uid'] . ' had ' . $result['addedNodes'] . ' added indexes and ' . $result['deletedNodes'] . ' deleted indexes';
                     $errors[] = $error;
+                    if ($progressListener) {
+                        $progressListener->log($error, LogLevel::WARNING);
+                    }
                     if ($cli_echo) {
                         echo $error . LF;
                     }
                 }
+            }
+            if ($progressListener) {
+                $progressListener->finish();
             }
 
             // Subselect based queries only work on the same connection
@@ -1172,6 +1189,9 @@ class ReferenceIndex implements LoggerAwareInterface
             if ($lostIndexes > 0) {
                 $error = 'Table ' . $tableName . ' has ' . $lostIndexes . ' lost indexes which are now deleted';
                 $errors[] = $error;
+                if ($progressListener) {
+                    $progressListener->log($error, LogLevel::WARNING);
+                }
                 if ($cli_echo) {
                     echo $error . LF;
                 }
@@ -1191,6 +1211,42 @@ class ReferenceIndex implements LoggerAwareInterface
         }
 
         // Searching lost indexes for non-existing tables
+        $lostTables = $this->getAmountOfUnusedTablesInReferenceIndex($tableNames);
+        if ($lostTables > 0) {
+            $error = 'Index table hosted ' . $lostTables . ' indexes for non-existing tables, now removed';
+            $errors[] = $error;
+            if ($progressListener) {
+                $progressListener->log($error, LogLevel::WARNING);
+            }
+            if ($cli_echo) {
+                echo $error . LF;
+            }
+            if (!$testOnly) {
+                $this->removeReferenceIndexDataFromUnusedDatabaseTables($tableNames);
+            }
+        }
+        $errorCount = count($errors);
+        $recordsCheckedString = $recCount . ' records from ' . count($tableNames) . ' tables were checked/updated.' . LF;
+        if ($progressListener) {
+            if ($errorCount) {
+                $progressListener->log($recordsCheckedString . 'Updates: ' . $errorCount, LogLevel::WARNING);
+            } else {
+                $progressListener->log($recordsCheckedString . 'Index Integrity was perfect!', LogLevel::INFO);
+            }
+        }
+        if ($cli_echo) {
+            echo $recordsCheckedString . ($errorCount ? 'Updates: ' . $errorCount : 'Index Integrity was perfect!') . LF;
+        }
+        if (!$testOnly) {
+            $registry = GeneralUtility::makeInstance(Registry::class);
+            $registry->set('core', 'sys_refindex_lastUpdate', $GLOBALS['EXEC_TIME']);
+        }
+        return [$headerContent, trim($recordsCheckedString), $errorCount, $errors];
+    }
+
+    protected function getAmountOfUnusedTablesInReferenceIndex(array $tableNames): int
+    {
+        $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
         $queryBuilder = $connectionPool->getQueryBuilderForTable('sys_refindex');
         $queryBuilder->getRestrictions()->removeAll();
         $lostTables = $queryBuilder
@@ -1203,43 +1259,20 @@ class ReferenceIndex implements LoggerAwareInterface
                 )
             )->execute()
             ->fetchColumn(0);
+        return (int)$lostTables;
+    }
 
-        if ($lostTables > 0) {
-            $error = 'Index table hosted ' . $lostTables . ' indexes for non-existing tables, now removed';
-            $errors[] = $error;
-            if ($cli_echo) {
-                echo $error . LF;
-            }
-            if (!$testOnly) {
-                $queryBuilder = $connectionPool->getQueryBuilderForTable('sys_refindex');
-                $queryBuilder->delete('sys_refindex')
-                    ->where(
-                        $queryBuilder->expr()->notIn(
-                            'tablename',
-                            $queryBuilder->createNamedParameter($tableNames, Connection::PARAM_STR_ARRAY)
-                        )
-                    )->execute();
-            }
-        }
-        $errorCount = count($errors);
-        $recordsCheckedString = $recCount . ' records from ' . $tableCount . ' tables were checked/updated.' . LF;
-        $flashMessage = GeneralUtility::makeInstance(
-            FlashMessage::class,
-            $errorCount ? implode('##LF##', $errors) : 'Index Integrity was perfect!',
-            $recordsCheckedString,
-            $errorCount ? FlashMessage::ERROR : FlashMessage::OK
-        );
-
-        $flashMessageRenderer = GeneralUtility::makeInstance(FlashMessageRendererResolver::class)->resolve();
-        $bodyContent = $flashMessageRenderer->render([$flashMessage]);
-        if ($cli_echo) {
-            echo $recordsCheckedString . ($errorCount ? 'Updates: ' . $errorCount : 'Index Integrity was perfect!') . LF;
-        }
-        if (!$testOnly) {
-            $registry = GeneralUtility::makeInstance(Registry::class);
-            $registry->set('core', 'sys_refindex_lastUpdate', $GLOBALS['EXEC_TIME']);
-        }
-        return [$headerContent, $bodyContent, $errorCount];
+    protected function removeReferenceIndexDataFromUnusedDatabaseTables(array $tableNames): void
+    {
+        $connectionPool = GeneralUtility::makeInstance(ConnectionPool::class);
+        $queryBuilder = $connectionPool->getQueryBuilderForTable('sys_refindex');
+        $queryBuilder->delete('sys_refindex')
+            ->where(
+                $queryBuilder->expr()->notIn(
+                    'tablename',
+                    $queryBuilder->createNamedParameter($tableNames, Connection::PARAM_STR_ARRAY)
+                )
+            )->execute();
     }
 
     /**
@@ -1269,13 +1302,12 @@ class ReferenceIndex implements LoggerAwareInterface
 
             // Fetch fields of the table which might contain relations
             $cacheId = static::$cachePrefixTableRelationFields . $tableName;
-            if (!$this->useRuntimeCache || !$this->runtimeCache->has($cacheId)) {
+            $tableRelationFields = $this->useRuntimeCache ? $this->runtimeCache->get($cacheId) : false;
+            if ($tableRelationFields === false) {
                 $tableRelationFields = $this->fetchTableRelationFields($tableName);
                 if ($this->useRuntimeCache) {
                     $this->runtimeCache->set($cacheId, $tableRelationFields);
                 }
-            } else {
-                $tableRelationFields = $this->runtimeCache->get($cacheId);
             }
 
             // Return if there are no fields which could contain relations
@@ -1330,13 +1362,11 @@ class ReferenceIndex implements LoggerAwareInterface
             return static::$excludedTables[$tableName];
         }
 
-        // Only exclude tables from ReferenceIndex which do not contain any relations and never did since existing references won't be deleted!
-        // There is no need to add tables without a definition in $GLOBALS['TCA] since ReferenceIndex only handles those.
-        $excludeTable = false;
-        $signalSlotDispatcher = GeneralUtility::makeInstance(Dispatcher::class);
-        $signalSlotDispatcher->dispatch(__CLASS__, 'shouldExcludeTableFromReferenceIndex', [$tableName, &$excludeTable]);
-
-        static::$excludedTables[$tableName] = $excludeTable;
+        // Only exclude tables from ReferenceIndex which do not contain any relations and never
+        // did since existing references won't be deleted!
+        $event = new IsTableExcludedFromReferenceIndexEvent($tableName);
+        $event = $this->eventDispatcher->dispatch($event);
+        static::$excludedTables[$tableName] = $event->isTableExcluded();
 
         return static::$excludedTables[$tableName];
     }

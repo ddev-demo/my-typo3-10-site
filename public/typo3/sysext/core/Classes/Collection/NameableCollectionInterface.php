@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Collection;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,15 @@ namespace TYPO3\CMS\Core\Collection;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Collection;
+
 /**
  * Marker interface for a collection class with title and description
  *
  * Collections might be used internally as well as being shown
- * With the nameable interface a title and a description are added
- * to an collection, allowing every collection implementing Nameable
- * being display by the same logic.
+ * with the nameable interface a title and a description are added
+ * to a collection, allowing every collection implementing Nameable
+ * being displayed by the same logic.
  */
 interface NameableCollectionInterface
 {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,11 @@ namespace TYPO3\CMS\Core\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Service;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Security\BlockSerializationTrait;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\CommandUtility;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
@@ -26,6 +28,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 abstract class AbstractService implements LoggerAwareInterface
 {
+    use BlockSerializationTrait;
     use LoggerAwareTrait;
 
     // General error - something went wrong
@@ -521,7 +524,7 @@ abstract class AbstractService implements LoggerAwareInterface
      * Initialization of the service.
      *
      * The class have to do a strict check if the service is available.
-     * example: check if the perl interpreter is available which is needed to run an extern perl script.
+     * example: check if the perl interpreter is available which is needed to run an external perl script.
      *
      * @return bool TRUE if the service is available
      */

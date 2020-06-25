@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Database;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Database;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\Platform\PlatformInformation;
@@ -54,7 +55,7 @@ class RelationHandler
     public $tableArray = [];
 
     /**
-     * Contains items in an numeric array (table/id for each). Tablenames here might be "_NO_TABLE"
+     * Contains items in a numeric array (table/id for each). Tablenames here might be "_NO_TABLE"
      *
      * @var array
      */
@@ -78,11 +79,6 @@ class RelationHandler
      * @var bool
      */
     public $checkIfDeleted = true;
-
-    /**
-     * @var array
-     */
-    public $dbPaths = [];
 
     /**
      * Will contain the first table name in the $tablelist (for positive ids)
@@ -123,9 +119,9 @@ class RelationHandler
     /**
      * Only set if MM_is_foreign is set
      *
-     * @var string
+     * @var array
      */
-    public $MM_oppositeFieldConf = '';
+    public $MM_oppositeFieldConf = [];
 
     /**
      * Is empty by default; if MM_is_foreign is set and there is more than one table
@@ -275,13 +271,11 @@ class RelationHandler
             $this->MM_oppositeUsage = $conf['MM_oppositeUsage'];
         }
         if ($this->MM_is_foreign) {
-            $tmp = $conf['type'] === 'group' ? $conf['allowed'] : $conf['foreign_table'];
+            $allowedTableList = $conf['type'] === 'group' ? $conf['allowed'] : $conf['foreign_table'];
             // Normally, $conf['allowed'] can contain a list of tables,
             // but as we are looking at a MM relation from the foreign side,
             // it only makes sense to allow one one table in $conf['allowed']
-            $tmp = GeneralUtility::trimExplode(',', $tmp);
-            $this->MM_oppositeTable = $tmp[0];
-            unset($tmp);
+            [$this->MM_oppositeTable] = GeneralUtility::trimExplode(',', $allowedTableList);
             // Only add the current table name if there is more than one allowed field
             // We must be sure this has been done at least once before accessing the "columns" part of TCA for a table.
             $this->MM_oppositeFieldConf = $GLOBALS['TCA'][$this->MM_oppositeTable]['columns'][$this->MM_oppositeField]['config'];
@@ -394,9 +388,9 @@ class RelationHandler
             // Changed to trimExplode 31/3 04; HMENU special type "list" didn't work
             // if there were spaces in the list... I suppose this is better overall...
             foreach ($tempItemArray as $key => $val) {
-                // Will be set to "1" if the entry was a real table/id:
-                $isSet = 0;
-                // Extract table name and id. This is un the formular [tablename]_[id]
+                // Will be set to "true" if the entry was a real table/id
+                $isSet = false;
+                // Extract table name and id. This is in the formula [tablename]_[id]
                 // where table name MIGHT contain "_", hence the reversion of the string!
                 $val = strrev($val);
                 $parts = explode('_', $val, 2);
@@ -421,8 +415,8 @@ class RelationHandler
                         $this->itemArray[$key]['id'] = $theID;
                         $this->itemArray[$key]['table'] = $theTable;
                         $this->tableArray[$theTable][] = $theID;
-                        // Set update-flag:
-                        $isSet = 1;
+                        // Set update-flag
+                        $isSet = true;
                     }
                 }
                 // If it turns out that the value from the list was NOT a valid reference to a table-record,
@@ -501,7 +495,7 @@ class RelationHandler
                         )
                     );
                 foreach (QueryHelper::parseOrderBy((string)$sortby) as $orderPair) {
-                    list($fieldName, $order) = $orderPair;
+                    [$fieldName, $order] = $orderPair;
                     $queryBuilder->addOrderBy($fieldName, $order);
                 }
                 $statement = $queryBuilder->execute();
@@ -1007,7 +1001,7 @@ class RelationHandler
 
         if (!empty($sortby)) {
             foreach (QueryHelper::parseOrderBy($sortby) as $orderPair) {
-                list($fieldName, $sorting) = $orderPair;
+                [$fieldName, $sorting] = $orderPair;
                 $queryBuilder->addOrderBy($fieldName, $sorting);
             }
         }
@@ -1118,7 +1112,7 @@ class RelationHandler
                         } else {
                             $tempSortBy = [];
                             foreach (QueryHelper::parseOrderBy($sortby) as $orderPair) {
-                                list($fieldName, $order) = $orderPair;
+                                [$fieldName, $order] = $orderPair;
                                 if ($order !== null) {
                                     $tempSortBy[] = implode(' ', $orderPair);
                                 } else {
@@ -1214,7 +1208,7 @@ class RelationHandler
                     } else {
                         $fields = 'uid,pid';
                         if ($GLOBALS['TCA'][$table]['ctrl']['label']) {
-                            // Titel
+                            // Title
                             $fields .= ',' . $GLOBALS['TCA'][$table]['ctrl']['label'];
                         }
                         if ($GLOBALS['TCA'][$table]['ctrl']['label_alt']) {
@@ -1305,7 +1299,7 @@ class RelationHandler
         $statisticsArray = [];
         if ($this->updateReferenceIndex) {
             /** @var \TYPO3\CMS\Core\Database\ReferenceIndex $refIndexObj */
-            $refIndexObj = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Database\ReferenceIndex::class);
+            $refIndexObj = GeneralUtility::makeInstance(ReferenceIndex::class);
             if (BackendUtility::isTableWorkspaceEnabled($table)) {
                 $refIndexObj->setWorkspaceId($this->getWorkspaceId());
             }
@@ -1326,14 +1320,13 @@ class RelationHandler
      */
     public function convertItemArray()
     {
-        $hasBeenConverted = false;
-
         // conversion is only required in a workspace context
         // (the case that version ids are submitted in a live context are rare)
         if ($this->getWorkspaceId() === 0) {
-            return $hasBeenConverted;
+            return false;
         }
 
+        $hasBeenConverted = false;
         foreach ($this->tableArray as $tableName => $ids) {
             if (empty($ids) || !BackendUtility::isTableWorkspaceEnabled($tableName)) {
                 continue;

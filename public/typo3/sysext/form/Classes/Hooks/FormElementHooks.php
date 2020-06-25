@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Form\Hooks;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Form\Hooks;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Hooks;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
@@ -78,22 +79,6 @@ class FormElementHooks
                 // 'Y-m-d' = https://tools.ietf.org/html/rfc3339#section-5.6 -> full-date
                 $formRuntime[$renderable->getIdentifier()] = $date->format('Y-m-d');
             }
-        }
-    }
-
-    /**
-     * This hook is invoked whenever a form element is created.
-     * Note that this hook will be called **after** all properties from the
-     * prototype configuration are set in the form element but **before**
-     * the properties from the form definition are set in the form element.
-     *
-     * @param RenderableInterface $renderable
-     */
-    public function initializeFormElement(RenderableInterface $renderable)
-    {
-        if ($renderable->getType() === 'Date' || $renderable->getType() === 'DatePicker') {
-            // Set the property mapping type for the `Date` and `DatePicker` element.
-            $renderable->setDataType('DateTime');
         }
     }
 }

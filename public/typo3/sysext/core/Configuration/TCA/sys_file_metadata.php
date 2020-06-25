@@ -1,4 +1,5 @@
 <?php
+
 return [
     'ctrl' => [
         'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file_metadata',
@@ -23,9 +24,6 @@ return [
             'ignoreRootLevelRestriction' => true,
         ],
         'searchFields' => 'title,description,alternative'
-    ],
-    'interface' => [
-        'showRecordFieldList' => 'file, title, description, alternative'
     ],
     'columns' => [
         'crdate' => [
@@ -113,6 +111,7 @@ return [
         ],
         'alternative' => [
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.alternative',
+            'description' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.alternative.description',
             'l10n_mode' => 'prefixLangTitle',
             'config' => [
                 'type' => 'input',
@@ -149,7 +148,7 @@ return [
     'types' => [
         '1' => ['showitem' => '
             --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:general,
-                fileinfo, title, description, alternative, --palette--;;language,
+                fileinfo, alternative, description, title, --palette--;;language,
             --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:categories,
                 categories,
             --div--;LLL:EXT:core/Resources/Private/Language/Form/locallang_tabs.xlf:extended,

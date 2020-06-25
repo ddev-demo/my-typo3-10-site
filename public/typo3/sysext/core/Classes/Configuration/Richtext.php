@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Configuration;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Configuration\Loader\YamlFileLoader;
@@ -44,7 +46,7 @@ class Richtext
     {
         // create instance of NodeFactory, ask for "text" element
         //
-        // As soon an the Data handler starts using FormDataProviders, this class can vanish again, and the hack to
+        // As soon as the Data handler starts using FormDataProviders, this class can vanish again, and the hack to
         // test for specific rich text instances can be dropped: Split the "TcaText" data provider into multiple parts, each
         // RTE should register and own data provider that does the transformation / configuration providing. This way,
         // the explicit check for different RTE classes is removed from core and "hooked in" by the RTE's.
@@ -57,10 +59,12 @@ class Richtext
         $pageTs = $this->getPageTsConfiguration($table, $field, $pid, $recordType);
 
         // determine which preset to use
-        $usePreset = $pageTs['preset'] ?? $tcaFieldConf['richtextConfiguration'] ?? 'default';
+        $pageTs['preset'] = $pageTs['fieldSpecificPreset'] ?? $tcaFieldConf['richtextConfiguration'] ?? $pageTs['generalPreset'] ?? 'default';
+        unset($pageTs['fieldSpecificPreset']);
+        unset($pageTs['generalPreset']);
 
         // load configuration from preset
-        $configuration = $this->loadConfigurationFromPreset($usePreset);
+        $configuration = $this->loadConfigurationFromPreset($pageTs['preset']);
 
         // overlay preset configuration with pageTs
         ArrayUtility::mergeRecursiveWithOverrule(
@@ -126,7 +130,7 @@ class Richtext
                 }
                 $typoScriptArray[$key . '.'] = $this->convertPlainArrayToTypoScriptArray($value);
             } else {
-                $typoScriptArray[$key] = $value === null ? '' : $value;
+                $typoScriptArray[$key] = $value ?? '';
             }
         }
         return $typoScriptArray;
@@ -170,6 +174,9 @@ class Richtext
         // Load PageTSconfig configuration
         $fullPageTsConfig = $this->getRtePageTsConfigOfPid($pid);
         $defaultPageTsConfigOverrides = $fullPageTsConfig['default.'] ?? null;
+
+        $defaultPageTsConfigOverrides['generalPreset'] = $fullPageTsConfig['default.']['preset'] ?? null;
+
         $fieldSpecificPageTsConfigOverrides = $fullPageTsConfig['config.'][$table . '.'][$field . '.'] ?? null;
         unset($fullPageTsConfig['default.'], $fullPageTsConfig['config.']);
 
@@ -180,6 +187,9 @@ class Richtext
         if (is_array($defaultPageTsConfigOverrides)) {
             ArrayUtility::mergeRecursiveWithOverrule($rtePageTsConfiguration, $defaultPageTsConfigOverrides);
         }
+
+        $rtePageTsConfiguration['fieldSpecificPreset'] = $fieldSpecificPageTsConfigOverrides['types.'][$recordType . '.']['preset'] ??
+            $fieldSpecificPageTsConfigOverrides['preset'] ?? null;
 
         // Then overload with RTE.config.tt_content.bodytext
         if (is_array($fieldSpecificPageTsConfigOverrides)) {
@@ -199,6 +209,8 @@ class Richtext
                 );
             }
         }
+
+        unset($rtePageTsConfiguration['preset']);
 
         return $rtePageTsConfiguration;
     }

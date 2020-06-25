@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Frontend\Middleware;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Frontend\Middleware;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -93,14 +95,14 @@ class TypoScriptFrontendInitialization implements MiddlewareInterface
             $controller->no_cache = 1;
         }
 
-        $controller->determineId();
+        $controller->determineId($request);
 
         // No access? Then remove user and re-evaluate the page id
         if ($controller->isBackendUserLoggedIn() && !$GLOBALS['BE_USER']->doesUserHaveAccess($controller->page, Permission::PAGE_SHOW)) {
             unset($GLOBALS['BE_USER']);
             // Register an empty backend user as aspect
             $this->setBackendUserAspect(null);
-            $controller->determineId();
+            $controller->determineId($request);
         }
 
         // Make TSFE globally available
@@ -113,7 +115,7 @@ class TypoScriptFrontendInitialization implements MiddlewareInterface
      *
      * @param BackendUserAuthentication|null $user
      */
-    protected function setBackendUserAspect(BackendUserAuthentication $user): void
+    protected function setBackendUserAspect(?BackendUserAuthentication $user): void
     {
         $this->context->setAspect('backend.user', GeneralUtility::makeInstance(UserAspect::class, $user));
         $this->context->setAspect('workspace', GeneralUtility::makeInstance(WorkspaceAspect::class, $user ? $user->workspace : 0));

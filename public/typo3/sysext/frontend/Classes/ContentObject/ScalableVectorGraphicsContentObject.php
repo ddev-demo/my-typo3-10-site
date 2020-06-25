@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
@@ -49,7 +50,7 @@ class ScalableVectorGraphicsContentObject extends AbstractContentObject
     protected function renderInline(array $conf): string
     {
         $src = $this->resolveAbsoluteSourcePath($conf);
-        list($width, $height, $isDefaultWidth, $isDefaultHeight) = $this->getDimensions($conf);
+        [$width, $height, $isDefaultWidth, $isDefaultHeight] = $this->getDimensions($conf);
 
         $content = '';
         if (file_exists($src)) {
@@ -94,7 +95,7 @@ class ScalableVectorGraphicsContentObject extends AbstractContentObject
     protected function renderObject(array $conf): string
     {
         $src = $this->resolveAbsoluteSourcePath($conf);
-        list($width, $height) = $this->getDimensions($conf);
+        [$width, $height] = $this->getDimensions($conf);
 
         $src = $src === '' ? null : PathUtility::getAbsoluteWebPath($src);
 

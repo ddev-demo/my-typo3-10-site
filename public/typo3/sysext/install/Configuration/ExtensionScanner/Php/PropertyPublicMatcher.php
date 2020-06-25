@@ -1,4 +1,5 @@
 <?php
+
 return [
     // Removed public properties
     'TYPO3\CMS\Backend\Controller\EditDocumentController->localizationMode' => [
@@ -629,6 +630,31 @@ return [
     'TYPO3\CMS\Backend\History\RecordHistory->lastHistoryEntry' => [
         'restFiles' => [
             'Deprecation-89127-CleanupRecordHistoryHandling.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController->divSection' => [
+        'restFiles' => [
+            'Deprecation-89722-GMENU_LAYERSRelatedPropertyTSFE-divSection.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Plugin\AbstractPlugin->pi_USER_INT_obj' => [
+        'restFiles' => [
+            'Deprecation-89868-RemoveReqCHashFunctionalityForPlugins.rst',
+        ],
+    ],
+    'TYPO3\CMS\Frontend\Plugin\AbstractPlugin->pi_checkCHash' => [
+        'restFiles' => [
+            'Deprecation-89868-RemoveReqCHashFunctionalityForPlugins.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\DataHandling\DataHandler->defaultPermissions' => [
+        'restFiles' => [
+            'Deprecation-90019-PagePermissionLogicByDataHandler.rst',
+        ],
+    ],
+    'TYPO3\CMS\Core\DataHandling\DataHandler->pMap' => [
+        'restFiles' => [
+            'Deprecation-90019-PagePermissionLogicByDataHandler.rst',
         ],
     ],
 ];

@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Seo\Canonical;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,11 +15,14 @@ namespace TYPO3\CMS\Seo\Canonical;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Seo\Canonical;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Utility\CanonicalizationUtility;
+use TYPO3\CMS\Seo\Event\ModifyUrlForCanonicalTagEvent;
 
 /**
  * Class to add the canonical tag to the page
@@ -40,38 +42,21 @@ class CanonicalGenerator
     protected $pageRepository;
 
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
 
-    /**
-     * CanonicalGenerator constructor
-     *
-     * @param TypoScriptFrontendController $typoScriptFrontendController
-     * @param Dispatcher $signalSlotDispatcher
-     */
-    public function __construct(TypoScriptFrontendController $typoScriptFrontendController = null, Dispatcher $signalSlotDispatcher = null)
+    public function __construct(TypoScriptFrontendController $typoScriptFrontendController = null, EventDispatcherInterface $eventDispatcher = null)
     {
-        if ($typoScriptFrontendController === null) {
-            $typoScriptFrontendController = $this->getTypoScriptFrontendController();
-        }
-        if ($signalSlotDispatcher === null) {
-            $signalSlotDispatcher = GeneralUtility::makeInstance(Dispatcher::class);
-        }
-        $this->typoScriptFrontendController = $typoScriptFrontendController;
-        $this->signalSlotDispatcher = $signalSlotDispatcher;
+        $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::getContainer()->get(EventDispatcherInterface::class);
+        $this->typoScriptFrontendController = $typoScriptFrontendController ?? $this->getTypoScriptFrontendController();
         $this->pageRepository = GeneralUtility::makeInstance(PageRepository::class);
     }
 
-    /**
-     * @return string
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotException
-     * @throws \TYPO3\CMS\Extbase\SignalSlot\Exception\InvalidSlotReturnException
-     */
     public function generate(): string
     {
-        $href = '';
-        $this->signalSlotDispatcher->dispatch(self::class, 'beforeGeneratingCanonical', [&$href]);
+        $event = $this->eventDispatcher->dispatch(new ModifyUrlForCanonicalTagEvent(''));
+        $href = $event->getUrl();
 
         if (empty($href) && (int)$this->typoScriptFrontendController->page['no_index'] === 1) {
             return '';

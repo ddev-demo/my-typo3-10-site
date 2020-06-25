@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Tree\View;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Backend\Tree\View;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Tree\View;
+
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
@@ -24,6 +25,7 @@ use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\FolderInterface;
 use TYPO3\CMS\Core\Resource\InaccessibleFolder;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
+use TYPO3\CMS\Core\Resource\Utility\ListUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -137,7 +139,7 @@ class FolderTreeView extends AbstractTreeView
 
         if ($this->thisScript) {
             // Activates dynamic AJAX based tree
-            $scopeData = serialize($this->scope);
+            $scopeData = json_encode($this->scope);
             $scopeHash = GeneralUtility::hmac($scopeData);
             $js = htmlspecialchars('Tree.load(' . GeneralUtility::quoteJSvalue($cmd) . ', ' . (int)$isExpand . ', this, ' . GeneralUtility::quoteJSvalue($scopeData) . ', ' . GeneralUtility::quoteJSvalue($scopeHash) . ');');
             return '<a class="list-tree-control' . (!$isExpand ? ' list-tree-control-open' : ' list-tree-control-closed') . '" onclick="' . $js . '"><i class="fa"></i></a>';
@@ -372,7 +374,7 @@ class FolderTreeView extends AbstractTreeView
             $subFolders = [];
         } else {
             $subFolders = $folderObject->getSubfolders();
-            $subFolders = \TYPO3\CMS\Core\Resource\Utility\ListUtility::resolveSpecialFolderNames($subFolders);
+            $subFolders = ListUtility::resolveSpecialFolderNames($subFolders);
             uksort($subFolders, 'strnatcasecmp');
         }
 
@@ -474,7 +476,7 @@ class FolderTreeView extends AbstractTreeView
         $out = '<ul class="list-tree list-tree-root">';
         // Evaluate AJAX request
         if (TYPO3_REQUESTTYPE & TYPO3_REQUESTTYPE_AJAX) {
-            list(, $expandCollapseCommand, $expandedFolderHash, ) = $this->evaluateExpandCollapseParameter();
+            [, $expandCollapseCommand, $expandedFolderHash, ] = $this->evaluateExpandCollapseParameter();
             if ($expandCollapseCommand == 1) {
                 $doExpand = true;
             } else {
@@ -591,10 +593,10 @@ class FolderTreeView extends AbstractTreeView
         $this->stored = json_decode($this->BE_USER->uc['browseTrees'][$this->treeName], true);
         $this->getShortHashNumberForStorage();
         // PM action:
-        // (If an plus/minus icon has been clicked,
+        // (If a plus/minus icon has been clicked,
         // the PM GET var is sent and we must update the stored positions in the tree):
         // 0: mount key, 1: set/clear boolean, 2: item ID (cannot contain "_"), 3: treeName
-        list($storageHashNumber, $doExpand, $numericFolderHash, $treeName) = $this->evaluateExpandCollapseParameter();
+        [$storageHashNumber, $doExpand, $numericFolderHash, $treeName] = $this->evaluateExpandCollapseParameter();
         if ($treeName && $treeName == $this->treeName) {
             if (in_array($storageHashNumber, $this->storageHashNumbers)) {
                 if ($doExpand == 1) {
@@ -648,7 +650,7 @@ class FolderTreeView extends AbstractTreeView
      * Gets the values from the Expand/Collapse Parameter (&PM)
      * previously known as "PM" (plus/minus)
      * PM action:
-     * (If an plus/minus icon has been clicked,
+     * (If a plus/minus icon has been clicked,
      * the PM GET var is sent and we must update the stored positions in the tree):
      * 0: mount key, 1: set/clear boolean, 2: item ID (cannot contain "_"), 3: treeName
      *
@@ -665,9 +667,9 @@ class FolderTreeView extends AbstractTreeView
             }
         }
         // Take the first three parameters
-        list($mountKey, $doExpand, $folderIdentifier) = array_pad(explode('_', $PM, 3), 3, null);
+        [$mountKey, $doExpand, $folderIdentifier] = array_pad(explode('_', $PM, 3), 3, null);
         // In case the folder identifier contains "_", we just need to get the fourth/last parameter
-        list($folderIdentifier, $treeName) = array_pad(GeneralUtility::revExplode('_', $folderIdentifier, 2), 2, null);
+        [$folderIdentifier, $treeName] = array_pad(GeneralUtility::revExplode('_', $folderIdentifier, 2), 2, null);
         return [
             $mountKey,
             $doExpand,

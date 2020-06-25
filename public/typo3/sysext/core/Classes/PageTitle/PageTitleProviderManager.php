@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\PageTitle;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,6 +15,10 @@ namespace TYPO3\CMS\Core\PageTitle;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\PageTitle;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
@@ -24,12 +27,12 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 /**
  * This class will take care of the different providers and returns the title with the highest priority
  */
-class PageTitleProviderManager implements SingletonInterface
+class PageTitleProviderManager implements SingletonInterface, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * @return string
-     * @throws \TYPO3\CMS\Core\Cache\Exception
-     * @throws \TYPO3\CMS\Core\Cache\Exception\InvalidDataException
      */
     public function getTitle(): string
     {
@@ -41,13 +44,26 @@ class PageTitleProviderManager implements SingletonInterface
         $orderedTitleProviders = GeneralUtility::makeInstance(DependencyOrderingService::class)
             ->orderByDependencies($titleProviders);
 
+        $this->logger->debug(
+            'Page title providers ordered',
+            ['orderedTitleProviders' => $orderedTitleProviders]
+        );
+
         foreach ($orderedTitleProviders as $provider => $configuration) {
             if (class_exists($configuration['provider']) && is_subclass_of($configuration['provider'], PageTitleProviderInterface::class)) {
                 /** @var PageTitleProviderInterface $titleProviderObject */
                 $titleProviderObject = GeneralUtility::makeInstance($configuration['provider']);
                 if ($pageTitle = $titleProviderObject->getTitle()) {
+                    $this->logger->debug(
+                        'Page title provider ' . $configuration['provider'] . ' used',
+                        ['title' => $pageTitle, 'providerUsed' => $configuration['provider']]
+                    );
                     break;
                 }
+                $this->logger->debug(
+                    'Page title provider ' . $configuration['provider'] . ' skipped',
+                    ['name' => $provider, 'skippedProvider' => $configuration['provider']]
+                );
             }
         }
 

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
@@ -128,8 +129,13 @@ class SelectSingleElement extends AbstractFormElement
         $selectedValue = '';
         $hasIcons = false;
 
+        // In case e.g. "l10n_display" is set to "defaultAsReadonly" only one value (as string) could be handed in
         if (!empty($parameterArray['itemFormElValue'])) {
-            $selectedValue = (string)$parameterArray['itemFormElValue'][0];
+            if (is_array($parameterArray['itemFormElValue'])) {
+                $selectedValue = (string)$parameterArray['itemFormElValue'][0];
+            } else {
+                $selectedValue = (string)$parameterArray['itemFormElValue'];
+            }
         }
 
         foreach ($selectItems as $item) {
@@ -193,7 +199,6 @@ class SelectSingleElement extends AbstractFormElement
             'name' => $parameterArray['itemFormElName'],
             'data-formengine-validation-rules' => $this->getValidationDataAsJsonString($config),
             'class' => implode(' ', $classList),
-            'data-original-value' => $selectedValue,
         ];
         if ($size) {
             $selectAttributes['size'] = $size;
@@ -205,6 +210,10 @@ class SelectSingleElement extends AbstractFormElement
         $fieldInformationResult = $this->renderFieldInformation();
         $fieldInformationHtml = $fieldInformationResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
+
+        $fieldControlResult = $this->renderFieldControl();
+        $fieldControlHtml = $fieldControlResult['html'];
+        $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldControlResult, false);
 
         $fieldWizardResult = $this->renderFieldWizard();
         $fieldWizardHtml = $fieldWizardResult['html'];
@@ -229,6 +238,13 @@ class SelectSingleElement extends AbstractFormElement
             $html[] =           '</div>';
         }
         $html[] =           '</div>';
+        if (!$disabled && !empty($fieldControlHtml)) {
+            $html[] =      '<div class="form-wizards-items-aside">';
+            $html[] =          '<div class="btn-group">';
+            $html[] =              $fieldControlHtml;
+            $html[] =          '</div>';
+            $html[] =      '</div>';
+        }
         if (!$disabled && !empty($fieldWizardHtml)) {
             $html[] =       '<div class="form-wizards-items-bottom">';
             $html[] =           $fieldWizardHtml;

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Configuration;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Configuration;
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -78,7 +80,7 @@ class BackendUserConfiguration
     }
 
     /**
-     * Adds an value to an Comma-separated list
+     * Adds a value to a Comma-separated list
      * stored in $key of user settings
      *
      * @param string $key
@@ -98,8 +100,8 @@ class BackendUserConfiguration
     }
 
     /**
-     * Removes an value from an Comma-separated list
-     * stored $key of user settings
+     * Removes a value from a Comma-separated list
+     * stored in $key of user settings
      *
      * @param string $key
      * @param mixed $value

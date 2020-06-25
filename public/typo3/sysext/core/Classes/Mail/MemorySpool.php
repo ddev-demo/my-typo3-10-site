@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Mail;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,12 +15,15 @@ namespace TYPO3\CMS\Core\Mail;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Mail;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
+use TYPO3\CMS\Core\Security\BlockSerializationTrait;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -36,6 +39,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class MemorySpool extends AbstractTransport implements SingletonInterface, LoggerAwareInterface, DelayedTransportInterface
 {
+    use BlockSerializationTrait;
     use LoggerAwareTrait;
 
     /**
@@ -105,5 +109,14 @@ class MemorySpool extends AbstractTransport implements SingletonInterface, Logge
     protected function doSend(SentMessage $message): void
     {
         $this->queuedMessages[] = $message;
+    }
+
+    public function __toString(): string
+    {
+        $result = '';
+        foreach ($this->queuedMessages as $sentMessage) {
+            $result .= $sentMessage->toString() . "\n";
+        }
+        return $result;
     }
 }

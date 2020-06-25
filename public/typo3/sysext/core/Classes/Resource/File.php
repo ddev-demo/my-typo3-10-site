@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -204,7 +205,7 @@ class File extends AbstractFile
             $this->getType();
         }
         if (array_key_exists('storage', $properties) && in_array('storage', $this->updatedProperties)) {
-            $this->storage = ResourceFactory::getInstance()->getStorageObject($properties['storage']);
+            $this->storage = GeneralUtility::makeInstance(ResourceFactory::class)->getStorageObject($properties['storage']);
         }
     }
 
@@ -224,7 +225,7 @@ class File extends AbstractFile
     /**
      * Check if a file operation (= action) is allowed for this file
      *
-     * @param 	string	$action, can be read, write, delete
+     * @param string $action can be read, write, delete
      * @return bool
      */
     public function checkActionPermission($action)
@@ -334,15 +335,7 @@ class File extends AbstractFile
     }
 
     /**
-     * @return Index\FileIndexRepository
-     */
-    protected function getFileIndexRepository()
-    {
-        return GeneralUtility::makeInstance(Index\FileIndexRepository::class);
-    }
-
-    /**
-     * @param $key
+     * @param string $key
      * @internal Only for use in Repositories and indexer
      * @return mixed
      */

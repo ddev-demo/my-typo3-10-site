@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,9 +13,12 @@ namespace TYPO3\CMS\Frontend\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Frontend\Resource;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\LinkHandling\LinkService;
+use TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection;
 use TYPO3\CMS\Core\Resource\Exception;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\FileCollectionRepository;
@@ -33,7 +35,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * Use in FILES Content Object or for a Fluid Data Processor
  *
  * Is not persisted, use only in FE.
- * @internal this is a internal TYPO3 implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
+ * @internal this is an internal TYPO3 implementation and solely used for EXT:frontend and not part of TYPO3's Core API.
  */
 class FileCollector implements \Countable, LoggerAwareInterface
 {
@@ -140,7 +142,7 @@ class FileCollector implements \Countable, LoggerAwareInterface
             try {
                 $fileCollection = $this->getFileCollectionRepository()->findByUid($fileCollectionUid);
 
-                if ($fileCollection instanceof \TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection) {
+                if ($fileCollection instanceof AbstractFileCollection) {
                     $fileCollection->loadContents();
                     $files = $fileCollection->getItems();
 

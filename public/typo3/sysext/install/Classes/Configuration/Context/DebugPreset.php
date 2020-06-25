@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Install\Configuration\Context;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,18 @@ namespace TYPO3\CMS\Install\Configuration\Context;
  * The TYPO3 project - inspiring people to share!
  */
 
-use TYPO3\CMS\Install\Configuration;
+namespace TYPO3\CMS\Install\Configuration\Context;
+
+use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Log\LogLevel;
+use TYPO3\CMS\Core\Log\Writer\FileWriter;
+use TYPO3\CMS\Install\Configuration\AbstractPreset;
 
 /**
  * Debug preset
  * @internal only to be used within EXT:install
  */
-class DebugPreset extends Configuration\AbstractPreset
+class DebugPreset extends AbstractPreset
 {
     /**
      * @var string Name of preset
@@ -40,7 +44,8 @@ class DebugPreset extends Configuration\AbstractPreset
         'FE/debug' => true,
         'SYS/devIPmask' => '*',
         'SYS/displayErrors' => 1,
-        'SYS/systemLogLevel' => 0,
+        // Values below are not available in UI
+        'LOG/TYPO3/CMS/deprecations/writerConfiguration/' . LogLevel::NOTICE . '/' . FileWriter::class . '/disabled' => false,
         // E_WARNING | E_RECOVERABLE_ERROR | E_DEPRECATED
         'SYS/exceptionalErrors' => 12290,
     ];
@@ -63,9 +68,8 @@ class DebugPreset extends Configuration\AbstractPreset
      */
     public function getPriority()
     {
-        $context = \TYPO3\CMS\Core\Utility\GeneralUtility::getApplicationContext();
         $priority = $this->priority;
-        if ($context->isDevelopment()) {
+        if (Environment::getContext()->isDevelopment()) {
             $priority = $priority + 20;
         }
         return $priority;

@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Install\Service;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Install\Service;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Install\Service;
 
 use Doctrine\DBAL\Platforms\MySqlPlatform;
 use Doctrine\DBAL\Schema\Column;
@@ -40,6 +41,9 @@ use TYPO3\CMS\Install\Updates\UpgradeWizardInterface;
  */
 class UpgradeWizardsService
 {
+    /**
+     * @var StreamOutput
+     */
     private $output;
 
     public function __construct()
@@ -254,33 +258,44 @@ class UpgradeWizardsService
     public function getUpgradeWizardsList(): array
     {
         $wizards = [];
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update'] as $identifier => $class) {
+        foreach (array_keys($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update']) as $identifier) {
             if ($this->isWizardDone($identifier)) {
                 continue;
             }
-            /** @var UpgradeWizardInterface $wizardInstance */
-            $wizardInstance = GeneralUtility::makeInstance($class);
-            $explanation = '';
 
-            // $explanation is changed by reference in Update objects!
-            $shouldRenderWizard = false;
-            if ($wizardInstance instanceof UpgradeWizardInterface) {
-                if ($wizardInstance instanceof ChattyInterface) {
-                    $wizardInstance->setOutput($this->output);
-                }
-                $shouldRenderWizard = $wizardInstance->updateNecessary();
-                $explanation = $wizardInstance->getDescription();
-            }
-
-            $wizards[] = [
-                'class' => $class,
-                'identifier' => $identifier,
-                'title' => $wizardInstance->getTitle(),
-                'shouldRenderWizard' => $shouldRenderWizard,
-                'explanation' => $explanation,
-            ];
+            $wizards[] = $this->getWizardInformationByIdentifier($identifier);
         }
         return $wizards;
+    }
+
+    public function getWizardInformationByIdentifier(string $identifier): array
+    {
+        if (class_exists($identifier)) {
+            $class = $identifier;
+        } else {
+            $class = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update'][$identifier];
+        }
+        /** @var UpgradeWizardInterface $wizardInstance */
+        $wizardInstance = GeneralUtility::makeInstance($class);
+        $explanation = '';
+
+        // $explanation is changed by reference in Update objects!
+        $shouldRenderWizard = false;
+        if ($wizardInstance instanceof UpgradeWizardInterface) {
+            if ($wizardInstance instanceof ChattyInterface) {
+                $wizardInstance->setOutput($this->output);
+            }
+            $shouldRenderWizard = $wizardInstance->updateNecessary();
+            $explanation = $wizardInstance->getDescription();
+        }
+
+        return [
+            'class' => $class,
+            'identifier' => $identifier,
+            'title' => $wizardInstance->getTitle(),
+            'shouldRenderWizard' => $shouldRenderWizard,
+            'explanation' => $explanation,
+        ];
     }
 
     /**
@@ -340,6 +355,7 @@ class UpgradeWizardsService
      */
     public function executeWizard(string $identifier): FlashMessageQueue
     {
+        $performResult = false;
         $this->assertIdentifierIsValid($identifier);
 
         $class = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/install']['update'][$identifier];

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Configuration;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,13 +13,19 @@ namespace TYPO3\CMS\Backend\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Configuration;
+
+use TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher;
 use TYPO3\CMS\Core\Cache\CacheManager;
+use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * A TS-Config parsing class which performs condition evaluation
+ *
+ * @deprecated Should not be used anymore. See the PageTsConfigParser class, which has a more straightforward API. This class will be removed in TYPO3 v11.0.
  */
-class TsConfigParser extends \TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser
+class TsConfigParser extends TypoScriptParser
 {
     /**
      * @var array
@@ -38,6 +43,11 @@ class TsConfigParser extends \TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser
      * @var string
      */
     public $type;
+
+    public function __construct()
+    {
+        trigger_error(__CLASS__ . ' has been superseded by PageTsConfigParser. This class will be removed in TYPO3 v11.0', E_USER_DEPRECATED);
+    }
 
     /**
      * Parses the passed TS-Config using conditions and caching
@@ -106,12 +116,12 @@ class TsConfigParser extends \TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser
      * Does the actual parsing using the parent objects "parse" method. Creates the match-Object
      *
      * @param string $TSconfig The TSConfig being parsed
-     * @return array Array containing the parsed TSConfig, the encountered sectiosn, the matched sections
+     * @return array Array containing the parsed TSConfig, the encountered sections, the matched sections
      */
     protected function parseWithConditions($TSconfig)
     {
         /** @var \TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher $matchObj */
-        $matchObj = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher::class);
+        $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class);
         $matchObj->setRootline($this->rootLine);
         $matchObj->setPageId($this->id);
         $this->parse($TSconfig, $matchObj);
@@ -132,7 +142,7 @@ class TsConfigParser extends \TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser
     {
         if (is_array($cc['sections'])) {
             /** @var \TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher $matchObj */
-            $matchObj = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching\ConditionMatcher::class);
+            $matchObj = GeneralUtility::makeInstance(ConditionMatcher::class);
             $matchObj->setRootline($this->rootLine);
             $matchObj->setPageId($this->id);
             foreach ($cc['sections'] as $key => $pre) {

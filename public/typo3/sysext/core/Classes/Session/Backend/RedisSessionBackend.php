@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Session\Backend;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Session\Backend;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Session\Backend;
 
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -129,10 +131,10 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
         $rawData = $this->redis->get($key);
 
         if ($rawData !== false) {
-            return json_decode(
-                $rawData,
-                true
-            );
+            $decodedValue = json_decode($rawData, true);
+            if (is_array($decodedValue)) {
+                return $decodedValue;
+            }
         }
         throw new SessionNotFoundException('Session could not be fetched from redis', 1481885583);
     }
@@ -170,9 +172,10 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
         $key = $this->getSessionKeyName($sessionId);
 
         // nx will not allow overwriting existing keys
-        $wasSet = $this->redis->set(
+        $jsonString = json_encode($sessionData);
+        $wasSet = is_string($jsonString) && $this->redis->set(
             $key,
-            json_encode($sessionData),
+            $jsonString,
             ['nx']
         );
 
@@ -204,7 +207,8 @@ class RedisSessionBackend implements SessionBackendInterface, LoggerAwareInterfa
         $sessionData['ses_tstamp'] = $GLOBALS['EXEC_TIME'] ?? time();
 
         $key = $this->getSessionKeyName($sessionId);
-        $wasSet = $this->redis->set($key, json_encode($sessionData));
+        $jsonString = json_encode($sessionData);
+        $wasSet = is_string($jsonString) && $this->redis->set($key, $jsonString);
 
         if (!$wasSet) {
             throw new SessionNotUpdatedException('Session could not be updated in Redis', 1481896383);

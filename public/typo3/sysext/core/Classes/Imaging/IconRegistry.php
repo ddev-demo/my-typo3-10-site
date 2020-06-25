@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Imaging;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Core\Imaging;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Imaging;
+
 use Symfony\Component\Finder\Finder;
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
@@ -22,6 +23,7 @@ use TYPO3\CMS\Core\Exception;
 use TYPO3\CMS\Core\Imaging\IconProvider\BitmapIconProvider;
 use TYPO3\CMS\Core\Imaging\IconProvider\FontawesomeIconProvider;
 use TYPO3\CMS\Core\Imaging\IconProvider\SvgIconProvider;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
@@ -463,7 +465,7 @@ class IconRegistry implements SingletonInterface
     }
 
     /**
-     * @param FrontendInterface $coreCache
+     * @param FrontendInterface $cache
      * @internal
      */
     public static function setCache(FrontendInterface $cache)
@@ -503,7 +505,7 @@ class IconRegistry implements SingletonInterface
      */
     protected function getCachedBackendIcons()
     {
-        $cacheIdentifier = 'BackendIcons_' . sha1(TYPO3_version . Environment::getProjectPath() . 'BackendIcons');
+        $cacheIdentifier = 'BackendIcons_' . sha1((string)(new Typo3Version()) . Environment::getProjectPath() . 'BackendIcons');
         /** @var \TYPO3\CMS\Core\Cache\Frontend\VariableFrontend $assetsCache */
         $assetsCache = static::$cache ?? GeneralUtility::makeInstance(CacheManager::class)->getCache('assets');
         $cacheEntry = $assetsCache->get($cacheIdentifier);
@@ -808,9 +810,9 @@ class IconRegistry implements SingletonInterface
             'HK', 'HM', 'HN', 'HR', 'HT', 'HU',
             'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR', 'IS', 'IT',
             'JE', 'JM', 'JO', 'JP',
-            'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ',
+            'KE', 'KG', 'KH', 'KI', 'KL', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ',
             'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'LY',
-            'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ',
+            'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MI', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ',
             'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ',
             'OM',
             'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM', 'PN', 'PR', 'PS', 'PT', 'PW', 'PY',

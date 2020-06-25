@@ -1,13 +1,6 @@
 <?php
-defined('TYPO3_MODE') or die();
 
-// sys_category tree check, which only affects Backend Users
-\TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\SignalSlot\Dispatcher::class)->connect(
-    \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeDataProvider::class,
-    \TYPO3\CMS\Core\Tree\TableConfiguration\DatabaseTreeDataProvider::SIGNAL_PostProcessTreeData,
-    \TYPO3\CMS\Backend\Security\CategoryPermissionsAspect::class,
-    'addUserPermissionsToCategoryTreeData'
-);
+defined('TYPO3_MODE') or die();
 
 $GLOBALS['TYPO3_CONF_VARS']['BE']['toolbarItems'][1435433106] = \TYPO3\CMS\Backend\Backend\ToolbarItems\ClearCacheToolbarItem::class;
 $GLOBALS['TYPO3_CONF_VARS']['BE']['toolbarItems'][1435433107] = \TYPO3\CMS\Backend\Backend\ToolbarItems\HelpToolbarItem::class;
@@ -36,8 +29,15 @@ $GLOBALS['TYPO3_CONF_VARS']['SYS']['formEngine']['nodeRegistry'][1460321142] = [
 // Register search key shortcuts
 $GLOBALS['TYPO3_CONF_VARS']['SYS']['livesearch']['page'] = 'pages';
 
+// Register standard preview renderer resolver implementation.
+// Resolves PreviewRendererInterface implementations for a given table and record.
+// Can be replaced with custom implementation by overriding this value in extensions.
+$GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['backend']['previewRendererResolver'] = \TYPO3\CMS\Backend\Preview\StandardPreviewRendererResolver::class;
+
 // Include base TSconfig setup
-\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig('<INCLUDE_TYPOSCRIPT: source="FILE:EXT:backend/Configuration/TSconfig/Page/Mod/Wizards/NewContentElement.tsconfig">');
+\TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig(
+    "@import 'EXT:backend/Configuration/TSconfig/Page/Mod/Wizards/NewContentElement.tsconfig'"
+);
 
 // Register BackendLayoutDataProvider for PageTs
 $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['BackendLayoutDataProvider']['pagets'] = \TYPO3\CMS\Backend\Provider\PageTsBackendLayoutDataProvider::class;

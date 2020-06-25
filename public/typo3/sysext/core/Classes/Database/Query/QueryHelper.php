@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Database\Query;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Database\Query;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Database\Query;
 
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -30,7 +32,7 @@ class QueryHelper
 {
     /**
      * Takes an input, possibly prefixed with ORDER BY, and explodes it into
-     * and array of arrays where each item consists of a fieldName and a order
+     * and array of arrays where each item consists of a fieldName and an order
      * direction.
      *
      * Each of the resulting fieldName/direction pairs can be used passed into
@@ -141,7 +143,8 @@ class QueryHelper
         // Catch the edge case that the table name is unquoted and the
         // table alias is actually quoted. This will not work in the case
         // that the quoted table alias contains whitespace.
-        if ($tableAlias[0] === '`' || $tableAlias[0] === '"') {
+        $firstCharacterOfTableAlias = $tableAlias[0] ?? null;
+        if ($firstCharacterOfTableAlias === '`' || $firstCharacterOfTableAlias === '"') {
             $tableAlias = substr($tableAlias, 1, -1);
         }
 

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Mail;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Mail;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Mail;
 
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -67,7 +69,7 @@ class TransportFactory implements SingletonInterface, LoggerAwareInterface
                     $host = $parts[0];
                     $port = $parts[1] ?? null;
                 } else {
-                    $host = (string)$mailSettings['transport_smtp_server'] ?? '';
+                    $host = (string)($mailSettings['transport_smtp_server'] ?? '');
                     $port = null;
                 }
 
@@ -79,7 +81,7 @@ class TransportFactory implements SingletonInterface, LoggerAwareInterface
                 } else {
                     $port = (int)$port;
                 }
-                $useEncryption = ($mailSettings['transport_smtp_encrypt'] ?? '') ?: null;
+                $useEncryption = (bool)($mailSettings['transport_smtp_encrypt'] ?? false) ?: null;
                 // Create transport
                 $transport = new EsmtpTransport($host, $port, $useEncryption);
                 // Need authentication?

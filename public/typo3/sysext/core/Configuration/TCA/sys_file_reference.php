@@ -1,4 +1,5 @@
 <?php
+
 return [
     'ctrl' => [
         'title' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file_reference',
@@ -34,9 +35,6 @@ return [
             'ignoreRootLevelRestriction' => true,
         ],
         'searchFields' => 'uid_local,uid_foreign,tablenames,fieldname,title,description'
-    ],
-    'interface' => [
-        'showRecordFieldList' => 'hidden,uid_local,uid_foreign,tablenames,fieldname,sorting_foreign,table_local,title,description'
     ],
     'columns' => [
         'sys_language_uid' => [
@@ -189,6 +187,7 @@ return [
             'l10n_mode' => 'prefixLangTitle',
             'exclude' => true,
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file_reference.alternative',
+            'description' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file.alternative.description',
             'config' => [
                 'type' => 'input',
                 'size' => 20,
@@ -265,8 +264,8 @@ return [
         'imageoverlayPalette' => [
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file_reference.imageoverlayPalette',
             'showitem' => '
-				title,alternative,--linebreak--,
-				link,description,--linebreak--,crop
+				alternative,description,--linebreak--,
+				link,title,--linebreak--,crop
 				',
         ],
         // Used for everything that is a video
@@ -276,7 +275,7 @@ return [
 				title,description,--linebreak--,autoplay
 				',
         ],
-        // Used for everything that is a audio file
+        // Used for everything that is an audio file
         'audioOverlayPalette' => [
             'label' => 'LLL:EXT:core/Resources/Private/Language/locallang_tca.xlf:sys_file_reference.audioOverlayPalette',
             'showitem' => '

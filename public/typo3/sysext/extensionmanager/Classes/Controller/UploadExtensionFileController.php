@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,20 @@ namespace TYPO3\CMS\Extensionmanager\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Extensionmanager\Controller;
+
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
+use TYPO3\CMS\Core\Security\BlockSerializationTrait;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Extbase\Mvc\Exception\StopActionException;
+use TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository;
 use TYPO3\CMS\Extensionmanager\Exception\DependencyConfigurationNotFoundException;
 use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
+use TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService;
+use TYPO3\CMS\Extensionmanager\Utility\Connection\TerUtility;
+use TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility;
 
 /**
  * Controller for handling upload of a local extension file
@@ -28,23 +35,25 @@ use TYPO3\CMS\Extensionmanager\Exception\ExtensionManagerException;
  */
 class UploadExtensionFileController extends AbstractController
 {
+    use BlockSerializationTrait;
+
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository
+     * @var ExtensionRepository
      */
     protected $extensionRepository;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility
+     * @var FileHandlingUtility
      */
     protected $fileHandlingUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Utility\Connection\TerUtility
+     * @var TerUtility
      */
     protected $terUtility;
 
     /**
-     * @var \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService
+     * @var ExtensionManagementService
      */
     protected $managementService;
 
@@ -59,33 +68,33 @@ class UploadExtensionFileController extends AbstractController
     protected $removeFromOriginalPath = false;
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository
+     * @param ExtensionRepository $extensionRepository
      */
-    public function injectExtensionRepository(\TYPO3\CMS\Extensionmanager\Domain\Repository\ExtensionRepository $extensionRepository)
+    public function injectExtensionRepository(ExtensionRepository $extensionRepository)
     {
         $this->extensionRepository = $extensionRepository;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility $fileHandlingUtility
+     * @param FileHandlingUtility $fileHandlingUtility
      */
-    public function injectFileHandlingUtility(\TYPO3\CMS\Extensionmanager\Utility\FileHandlingUtility $fileHandlingUtility)
+    public function injectFileHandlingUtility(FileHandlingUtility $fileHandlingUtility)
     {
         $this->fileHandlingUtility = $fileHandlingUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Utility\Connection\TerUtility $terUtility
+     * @param TerUtility $terUtility
      */
-    public function injectTerUtility(\TYPO3\CMS\Extensionmanager\Utility\Connection\TerUtility $terUtility)
+    public function injectTerUtility(TerUtility $terUtility)
     {
         $this->terUtility = $terUtility;
     }
 
     /**
-     * @param \TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService $managementService
+     * @param ExtensionManagementService $managementService
      */
-    public function injectManagementService(\TYPO3\CMS\Extensionmanager\Service\ExtensionManagementService $managementService)
+    public function injectManagementService(ExtensionManagementService $managementService)
     {
         $this->managementService = $managementService;
     }
@@ -157,7 +166,7 @@ class UploadExtensionFileController extends AbstractController
                     $this->redirect('unresolvedDependencies', 'List', null, ['extensionKey' => $extensionData['extKey']]);
                 }
             }
-        } catch (\TYPO3\CMS\Extbase\Mvc\Exception\StopActionException $exception) {
+        } catch (StopActionException $exception) {
             throw $exception;
         } catch (DependencyConfigurationNotFoundException $exception) {
             $this->addFlashMessage($exception->getMessage(), '', FlashMessage::ERROR);

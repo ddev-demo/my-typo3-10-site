@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Database;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,7 +13,10 @@ namespace TYPO3\CMS\Core\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database;
+
 use Doctrine\DBAL\DBALException;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Query\QueryHelper;
@@ -42,16 +44,6 @@ class QueryView
      * @var string
      */
     public $storeList = 'search_query_smallparts,search_result_labels,labels_noprefix,show_deleted,queryConfig,queryTable,queryFields,queryLimit,queryOrder,queryOrderDesc,queryOrder2,queryOrder2Desc,queryGroup,search_query_makeQuery';
-
-    /**
-     * @var string
-     */
-    public $downloadScript = 'index.php';
-
-    /**
-     * @var int
-     */
-    public $formW = 48;
 
     /**
      * @var int
@@ -169,11 +161,9 @@ class QueryView
         }
         $markup = [];
         $markup[] = '<div class="load-queries">';
-        $markup[] = '  <div class="form-inline">';
+        $markup[] = '  <div class="form-group form-inline">';
         $markup[] = '    <div class="form-group">';
-        $markup[] = '      <select class="form-control" name="storeControl[STORE]" onChange="document.forms[0]'
-            . '[\'storeControl[title]\'].value= this.options[this.selectedIndex].value!=0 '
-            . '? this.options[this.selectedIndex].text : \'\';">' . implode(LF, $opt) . '</select>';
+        $markup[] = '      <select class="form-control" name="storeControl[STORE]" data-assign-store-control-title>' . implode(LF, $opt) . '</select>';
         $markup[] = '      <input class="form-control" name="storeControl[title]" value="" type="text" max="80">';
         $markup[] = '      <input class="btn btn-default" type="submit" name="storeControl[LOAD]" value="Load">';
         $markup[] = '      <input class="btn btn-default" type="submit" name="storeControl[SAVE]" value="Save">';
@@ -195,7 +185,7 @@ class QueryView
         $storeArray = [
             '0' => '[New]'
         ];
-        $savedStoreArray = unserialize($this->settings['storeArray']);
+        $savedStoreArray = unserialize($this->settings['storeArray'], ['allowed_classes' => false]);
         if (is_array($savedStoreArray)) {
             $storeArray = array_merge($storeArray, $savedStoreArray);
         }
@@ -254,7 +244,7 @@ class QueryView
             }
             // Show query
             if ($saveArr['queryTable']) {
-                /** @var \TYPO3\CMS\Core\Database\QueryGenerator */
+                /** @var \TYPO3\CMS\Core\Database\QueryGenerator $queryGenerator */
                 $queryGenerator = GeneralUtility::makeInstance(QueryGenerator::class);
                 $queryGenerator->init('queryConfig', $saveArr['queryTable']);
                 $queryGenerator->makeSelectorTable($saveArr);
@@ -315,8 +305,9 @@ class QueryView
      */
     public function procesStoreControl()
     {
+        $flashMessage = null;
         $storeArray = $this->initStoreArray();
-        $storeQueryConfigs = unserialize($this->settings['storeQueryConfigs']);
+        $storeQueryConfigs = unserialize($this->settings['storeQueryConfigs'], ['allowed_classes' => false]);
         $storeControl = GeneralUtility::_GP('storeControl');
         $storeIndex = (int)$storeControl['STORE'];
         $saveStoreArray = 0;
@@ -334,7 +325,7 @@ class QueryView
                 } elseif ($storeIndex < 0 && ExtensionManagementUtility::isLoaded('sys_action')) {
                     $actionRecord = BackendUtility::getRecord('sys_action', abs($storeIndex));
                     if (is_array($actionRecord)) {
-                        $dA = unserialize($actionRecord['t2_data']);
+                        $dA = unserialize($actionRecord['t2_data'], ['allowed_classes' => false]);
                         $dbSC = [];
                         if (is_array($dA['qC'])) {
                             $dbSC[0] = $dA['qC'];
@@ -483,7 +474,7 @@ class QueryView
                 }
             }
         }
-        return '<div class="query-builder">' . $output . '</div>';
+        return '<div class="database-query-builder">' . $output . '</div>';
     }
 
     /**
@@ -502,7 +493,7 @@ class QueryView
         switch ($type) {
             case 'count':
                 $cPR['header'] = 'Count';
-                $cPR['content'] = '<BR><strong>' . (int)$dataRows[0] . '</strong> records selected.';
+                $cPR['content'] = '<br><strong>' . (int)$dataRows[0] . '</strong> records selected.';
                 break;
             case 'all':
                 $rowArr = [];
@@ -543,8 +534,7 @@ class QueryView
                         . '</textarea>';
                     if (!$this->noDownloadB) {
                         $out .= '<br><input class="btn btn-default" type="submit" name="download_file" '
-                            . 'value="Click to download file" onClick="window.location.href=' . htmlspecialchars(GeneralUtility::quoteJSvalue($this->downloadScript))
-                            . ';">';
+                            . 'value="Click to download file">';
                     }
                     // Downloads file:
                     // @todo: args. routing anyone?
@@ -696,7 +686,7 @@ class QueryView
         }
         $out .= '<td>';
         /** @var \TYPO3\CMS\Backend\Routing\UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(\TYPO3\CMS\Backend\Routing\UriBuilder::class);
+        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
 
         if (!$row['deleted']) {
             $out .= '<div class="btn-group" role="group">';
@@ -712,9 +702,12 @@ class QueryView
             $out .= '<a class="btn btn-default" href="' . htmlspecialchars($url) . '">'
                 . $this->iconFactory->getIcon('actions-open', Icon::SIZE_SMALL)->render() . '</a>';
             $out .= '</div><div class="btn-group" role="group">';
-            $out .= '<a class="btn btn-default" href="#" onClick="top.TYPO3.InfoWindow.showItem(\'' . $table . '\',' . $row['uid']
-                . ');return false;">' . $this->iconFactory->getIcon('actions-document-info', Icon::SIZE_SMALL)->render()
-                . '</a>';
+            $out .= sprintf(
+                '<a class="btn btn-default" href="#" data-dispatch-action="%s" data-dispatch-args-list="%s">%s</a>',
+                'TYPO3.InfoWindow.showItem',
+                htmlspecialchars($table . ',' . $row['uid']),
+                $this->iconFactory->getIcon('actions-document-info', Icon::SIZE_SMALL)->render()
+            );
             $out .= '</div>';
         } else {
             $out .= '<div class="btn-group" role="group">';
@@ -933,6 +926,7 @@ class QueryView
      */
     public function makeValueList($fieldName, $fieldValue, $conf, $table, $splitString)
     {
+        $from_table_Arr = [];
         $fieldSetup = $conf;
         $out = '';
         if ($fieldSetup['type'] === 'multiple') {
@@ -1154,8 +1148,7 @@ class QueryView
             ) {
                 if ($this->settings['search_result_labels']) {
                     $title = $this->languageService->sL($conf['columns'][$fieldName]['label']
-                        ? $conf['columns'][$fieldName]['label']
-                        : $fieldName);
+                        ?: $fieldName);
                 } else {
                     $title = $this->languageService->sL($fieldName);
                 }
@@ -1190,8 +1183,7 @@ class QueryView
                     $out .= htmlspecialchars(
                         $this->languageService->sL(
                             $conf['columns'][$fieldName]['label']
-                            ? $conf['columns'][$fieldName]['label']
-                            : $fieldName
+                            ?: $fieldName
                         )
                     );
                 } else {

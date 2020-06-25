@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
 
 use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -265,7 +267,7 @@ class Pbkdf2PasswordHash implements PasswordHashInterface
 
     /**
      * Adapted version of base64_encoding for compatibility with python passlib. The output of this function is
-     * is identical to base64_encode, except that it uses . instead of +, and omits trailing padding = and whitepsace.
+     * is identical to base64_encode, except that it uses . instead of +, and omits trailing padding = and whitespace.
      *
      * @param string $input The string containing bytes to encode.
      * @param int $count The number of characters (bytes) to encode.
@@ -279,7 +281,7 @@ class Pbkdf2PasswordHash implements PasswordHashInterface
 
     /**
      * Adapted version of base64_encoding for compatibility with python passlib. The output of this function is
-     * is identical to base64_encode, except that it uses . instead of +, and omits trailing padding = and whitepsace.
+     * is identical to base64_encode, except that it uses . instead of +, and omits trailing padding = and whitespace.
      *
      * @param string $value
      * @return string

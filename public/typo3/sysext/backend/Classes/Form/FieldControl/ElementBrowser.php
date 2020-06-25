@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Form\FieldControl;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Backend\Form\FieldControl;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\FieldControl;
 
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Form\InlineStackProcessor;
@@ -38,7 +40,7 @@ class ElementBrowser extends AbstractNode
         $elementName = $parameterArray['itemFormElName'];
         $config = $parameterArray['fieldConf']['config'];
         $internalType = (string)$config['internal_type'];
-        $allowed = GeneralUtility::trimExplode(',', $config['allowed'], true);
+        $allowed = $config['allowed'];
 
         if (isset($config['readOnly']) && $config['readOnly']) {
             return [];
@@ -67,10 +69,11 @@ class ElementBrowser extends AbstractNode
         if (is_array($config['appearance']) && isset($config['appearance']['elementBrowserType'])) {
             $elementBrowserType = $config['appearance']['elementBrowserType'];
         }
-        $elementBrowserAllowed = implode(',', $allowed);
         if (is_array($config['appearance']) && isset($config['appearance']['elementBrowserAllowed'])) {
-            $elementBrowserAllowed = $config['appearance']['elementBrowserAllowed'];
+            $allowed = $config['appearance']['elementBrowserAllowed'];
         }
+        // Remove any white-spaces from the allowed extension lists
+        $elementBrowserAllowed = implode(',', GeneralUtility::trimExplode(',', $allowed, true));
 
         return [
             'iconIdentifier' => 'actions-insert-record',

@@ -1,4 +1,5 @@
 <?php
+
 defined('TYPO3_MODE') or die();
 
 call_user_func(function () {
@@ -36,7 +37,7 @@ call_user_func(function () {
 
     // Add new content element wizard entry
     \TYPO3\CMS\Core\Utility\ExtensionManagementUtility::addPageTSConfig(
-        '<INCLUDE_TYPOSCRIPT: source="FILE:EXT:form/Configuration/PageTS/modWizards.tsconfig">'
+        "@import 'EXT:form/Configuration/PageTS/modWizards.tsconfig'"
     );
 
     // Add module configuration
@@ -44,9 +45,7 @@ call_user_func(function () {
         'module.tx_form {
     settings {
         yamlConfigurations {
-            10 = EXT:form/Configuration/Yaml/BaseSetup.yaml
-            20 = EXT:form/Configuration/Yaml/FormEditorSetup.yaml
-            30 = EXT:form/Configuration/Yaml/FormEngineSetup.yaml
+            10 = EXT:form/Configuration/Yaml/FormSetup.yaml
         }
     }
     view {
@@ -58,9 +57,6 @@ call_user_func(function () {
     );
 
     $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['afterSubmit'][1489772699]
-        = \TYPO3\CMS\Form\Hooks\FormElementHooks::class;
-
-    $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['initializeFormElement'][1489772699]
         = \TYPO3\CMS\Form\Hooks\FormElementHooks::class;
 
     $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['ext/form']['beforeRendering'][1489772699]
@@ -87,46 +83,5 @@ call_user_func(function () {
         [\TYPO3\CMS\Form\Controller\FormFrontendController::class => 'render, perform'],
         [\TYPO3\CMS\Form\Controller\FormFrontendController::class => 'perform'],
         \TYPO3\CMS\Extbase\Utility\ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
-    );
-
-    // Register slots for file handling
-    $signalSlotDispatcher = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(
-        \TYPO3\CMS\Extbase\SignalSlot\Dispatcher::class
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileCreate,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileCreate'
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileAdd,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileAdd'
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileRename,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileRename'
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileReplace,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileReplace'
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileMove,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileMove'
-    );
-    $signalSlotDispatcher->connect(
-        \TYPO3\CMS\Core\Resource\ResourceStorage::class,
-        \TYPO3\CMS\Core\Resource\ResourceStorageInterface::SIGNAL_PreFileSetContents,
-        \TYPO3\CMS\Form\Slot\FilePersistenceSlot::class,
-        'onPreFileSetContents'
     );
 });

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Service;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Service;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Service;
 
 use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -201,6 +203,35 @@ class TranslationService implements SingletonInterface
                 }
             }
         }
+        return $result;
+    }
+
+    /**
+     * @param string $key
+     * @param array $arguments
+     * @param array $translationFiles
+     * @return array the modified array
+     * @internal
+     */
+    public function translateToAllBackendLanguages(
+        string $key,
+        array $arguments = null,
+        array $translationFiles = []
+    ): array {
+        $result = [];
+        $translationFiles = $this->sortArrayWithIntegerKeysDescending($translationFiles);
+
+        foreach ($this->getAllTypo3BackendLanguages() as $language) {
+            $result[$language] = $key;
+            foreach ($translationFiles as $translationFile) {
+                $translatedValue = $this->translate($key, $arguments, $translationFile, $language, $key);
+                if ($translatedValue !== $key) {
+                    $result[$language] = $translatedValue;
+                    break;
+                }
+            }
+        }
+
         return $result;
     }
 
@@ -681,6 +712,19 @@ class TranslationService implements SingletonInterface
             return $GLOBALS['TYPO3_REQUEST']->getAttribute('language', null);
         }
         return null;
+    }
+
+    /**
+     * @return array
+     */
+    protected function getAllTypo3BackendLanguages(): array
+    {
+        $languages = array_merge(
+            ['default'],
+            array_values($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['lang']['availableLanguages'] ?? [])
+        );
+
+        return $languages;
     }
 
     /**

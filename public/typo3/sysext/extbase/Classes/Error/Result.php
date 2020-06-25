@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Extbase\Error;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Extbase\Error;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Error;
 
 /**
  * Result object for operations dealing with objects, such as the Property Mapper or the Validators.
@@ -174,7 +175,7 @@ class Result
     }
 
     /**
-     * Get the first notice object of the curren Result object (non-recursive)
+     * Get the first notice object of the current Result object (non-recursive)
      *
      * @return Notice
      */
@@ -186,7 +187,7 @@ class Result
 
     /**
      * Return a Result object for the given property path. This is
-     * a fluent interface, so you will proboably use it like:
+     * a fluent interface, so you will probably use it like:
      * $result->forProperty('foo.bar')->getErrors() -- to get all errors
      * for property "foo.bar"
      *

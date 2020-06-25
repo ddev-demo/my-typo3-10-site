@@ -1,7 +1,5 @@
 <?php
 
-namespace TYPO3\CMS\Core\Resource\Index;
-
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -15,17 +13,22 @@ namespace TYPO3\CMS\Core\Resource\Index;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Index;
+
 use Doctrine\DBAL\Platforms\SQLServerPlatform;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\RootLevelRestriction;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMetaDataCreatedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMetaDataDeletedEvent;
+use TYPO3\CMS\Core\Resource\Event\AfterFileMetaDataUpdatedEvent;
+use TYPO3\CMS\Core\Resource\Event\EnrichFileMetaDataEvent;
 use TYPO3\CMS\Core\Resource\Exception\InvalidUidException;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\SingletonInterface;
-use TYPO3\CMS\Core\Type\File as FileType;
+use TYPO3\CMS\Core\Type\File\ImageInfo;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Repository Class as an abstraction layer to sys_file_metadata
@@ -48,6 +51,16 @@ class MetaDataRepository implements SingletonInterface
     protected $tableFields = [];
 
     /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
+
+    /**
      * Returns array of meta-data properties
      *
      * @param File $file
@@ -61,11 +74,13 @@ class MetaDataRepository implements SingletonInterface
         // created and inserted into the database. If this is the case
         // we have to take care about correct meta information for width and
         // height in case of an image.
-        if (!empty($record['newlyCreated'])) {
+        // This logic can be transferred into a custom PSR-14 event listener in the future by just using
+        // the AfterMetaDataCreated event.
+        if (!empty($record['crdate']) && (int)$record['crdate'] === $GLOBALS['EXEC_TIME']) {
             if ($file->getType() === File::FILETYPE_IMAGE && $file->getStorage()->getDriverType() === 'Local') {
                 $fileNameAndPath = $file->getForLocalProcessing(false);
 
-                $imageInfo = GeneralUtility::makeInstance(FileType\ImageInfo::class, $fileNameAndPath);
+                $imageInfo = GeneralUtility::makeInstance(ImageInfo::class, $fileNameAndPath);
 
                 $additionalMetaInformation = [
                     'width' => $imageInfo->getWidth(),
@@ -112,10 +127,7 @@ class MetaDataRepository implements SingletonInterface
             return [];
         }
 
-        $passedData = new \ArrayObject($record);
-
-        $this->emitRecordPostRetrievalSignal($passedData);
-        return $passedData->getArrayCopy();
+        return $this->eventDispatcher->dispatch(new EnrichFileMetaDataEvent($uid, (int)$record['uid'], $record))->getRecord();
     }
 
     /**
@@ -147,11 +159,8 @@ class MetaDataRepository implements SingletonInterface
 
         $record = $emptyRecord;
         $record['uid'] = $connection->lastInsertId($this->tableName);
-        $record['newlyCreated'] = true;
 
-        $this->emitRecordCreatedSignal($record);
-
-        return $record;
+        return $this->eventDispatcher->dispatch(new AfterFileMetaDataCreatedEvent($fileUid, (int)$record['uid'], $record))->getRecord();
     }
 
     /**
@@ -188,7 +197,7 @@ class MetaDataRepository implements SingletonInterface
                 $types
             );
 
-            $this->emitRecordUpdatedSignal(array_merge($row, $updateRow));
+            $this->eventDispatcher->dispatch(new AfterFileMetaDataUpdatedEvent($fileUid, (int)$row['uid'], array_merge($row, $updateRow)));
         }
     }
 
@@ -207,69 +216,8 @@ class MetaDataRepository implements SingletonInterface
                     'file' => (int)$fileUid
                 ]
             );
-        $this->emitRecordDeletedSignal($fileUid);
-    }
 
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        return $this->getObjectManager()->get(Dispatcher::class);
-    }
-
-    /**
-     * Get the ObjectManager
-     *
-     * @return ObjectManager
-     */
-    protected function getObjectManager()
-    {
-        return GeneralUtility::makeInstance(ObjectManager::class);
-    }
-
-    /**
-     * Signal that is called after a record has been loaded from database
-     * Allows other places to do extension of metadata at runtime or
-     * for example translation and workspace overlay
-     *
-     * @param \ArrayObject $data
-     */
-    protected function emitRecordPostRetrievalSignal(\ArrayObject $data)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordPostRetrieval', [$data]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is updated
-     *
-     * @param array $data
-     */
-    protected function emitRecordUpdatedSignal(array $data)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordUpdated', [$data]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is created
-     *
-     * @param array $data
-     */
-    protected function emitRecordCreatedSignal(array $data)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordCreated', [$data]);
-    }
-
-    /**
-     * Signal that is called after an IndexRecord is deleted
-     *
-     * @param int $fileUid
-     */
-    protected function emitRecordDeletedSignal($fileUid)
-    {
-        $this->getSignalSlotDispatcher()->dispatch(self::class, 'recordDeleted', [$fileUid]);
+        $this->eventDispatcher->dispatch(new AfterFileMetaDataDeletedEvent((int)$fileUid));
     }
 
     /**

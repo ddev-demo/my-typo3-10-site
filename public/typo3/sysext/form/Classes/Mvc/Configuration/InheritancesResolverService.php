@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Mvc\Configuration;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,14 +15,17 @@ namespace TYPO3\CMS\Form\Mvc\Configuration;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Mvc\Configuration;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\Utility\StringUtility;
 use TYPO3\CMS\Extbase\Object\ObjectManager;
 use TYPO3\CMS\Form\Mvc\Configuration\Exception\CycleInheritancesException;
 
 /**
- * Resolve declared inheritances within an configuration array
+ * Resolve declared inheritances within a configuration array
  *
  * Basic concept:
  * - Take a large YAML config and replace the key '__inheritance' by the referenced YAML partial (of the same config file)
@@ -190,6 +193,21 @@ class InheritancesResolverService
 
                     //and replace the __inheritance operator by the respective partial
                     if (is_array($inheritances)) {
+                        $deprecatedMixinInheritances = array_filter(
+                            $inheritances,
+                            function (string $inheritance): bool {
+                                return StringUtility::beginsWith($inheritance, 'TYPO3.CMS.Form.mixins.');
+                            }
+                        );
+
+                        if (!empty($deprecatedMixinInheritances)) {
+                            trigger_error(sprintf(
+                                'Deprecated form mixins used in "%s": %s',
+                                $path,
+                                implode(', ', $deprecatedMixinInheritances)
+                            ), E_USER_DEPRECATED);
+                        }
+
                         $inheritedConfigurations = $this->resolveInheritancesRecursive($inheritances);
                         $configuration[$key] = array_replace_recursive($inheritedConfigurations, $configuration[$key]);
                     }

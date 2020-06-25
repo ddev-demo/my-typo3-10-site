@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\Authentication;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Core\Authentication;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Authentication;
 
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -64,7 +65,7 @@ class IpLocker
             return true;
         }
 
-        $ipToCompare = $this->isIpv6Address($sessionIpLock)
+        $ipToCompare = $this->isIpv6Address($ipAddress)
             ? $this->getIpLockPartForIpv6Address($ipAddress)
             : $this->getIpLockPartForIpv4Address($ipAddress);
         return $ipToCompare === $sessionIpLock;

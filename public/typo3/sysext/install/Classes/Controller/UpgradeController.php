@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Install\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Install\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Install\Controller;
+
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\ParserFactory;
@@ -24,15 +26,17 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Database\Schema\Exception\StatementException;
 use TYPO3\CMS\Core\FormProtection\FormProtectionFactory;
 use TYPO3\CMS\Core\FormProtection\InstallToolFormProtection;
 use TYPO3\CMS\Core\Http\JsonResponse;
 use TYPO3\CMS\Core\Messaging\FlashMessage;
 use TYPO3\CMS\Core\Messaging\FlashMessageQueue;
 use TYPO3\CMS\Core\Migrations\TcaMigration;
-use TYPO3\CMS\Core\Package\Package;
+use TYPO3\CMS\Core\Package\PackageInterface;
 use TYPO3\CMS\Core\Package\PackageManager;
 use TYPO3\CMS\Core\Registry;
+use TYPO3\CMS\Core\Service\OpcodeCacheService;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Install\ExtensionScanner\Php\CodeStatistics;
@@ -42,6 +46,7 @@ use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\ArrayGlobalMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\ClassConstantMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\ClassNameMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\ConstantMatcher;
+use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\ConstructorArgumentMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\FunctionCallMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\InterfaceMethodChangedMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\MethodAnnotationMatcher;
@@ -57,6 +62,7 @@ use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\PropertyExistsStaticMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\PropertyProtectedMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\Matcher\PropertyPublicMatcher;
 use TYPO3\CMS\Install\ExtensionScanner\Php\MatcherFactory;
+use TYPO3\CMS\Install\Service\ClearCacheService;
 use TYPO3\CMS\Install\Service\CoreUpdateService;
 use TYPO3\CMS\Install\Service\CoreVersionService;
 use TYPO3\CMS\Install\Service\LateBootService;
@@ -81,6 +87,11 @@ class UpgradeController extends AbstractController
     protected $coreVersionService;
 
     /**
+     * @var UpgradeWizardsService
+     */
+    private $upgradeWizardsService;
+
+    /**
      * @var PackageManager
      */
     protected $packageManager;
@@ -90,14 +101,14 @@ class UpgradeController extends AbstractController
      */
     private $lateBootService;
 
-    /**
-     * @param PackageManager $packageManager
-     * @param LateBootService $lateBootService
-     */
-    public function __construct(PackageManager $packageManager, LateBootService $lateBootService)
-    {
+    public function __construct(
+        PackageManager $packageManager,
+        LateBootService $lateBootService,
+        UpgradeWizardsService $upgradeWizardsService
+    ) {
         $this->packageManager = $packageManager;
         $this->lateBootService = $lateBootService;
+        $this->upgradeWizardsService = $upgradeWizardsService;
     }
 
     /**
@@ -126,6 +137,10 @@ class UpgradeController extends AbstractController
         [
             'class' => ConstantMatcher::class,
             'configurationFile' => 'EXT:install/Configuration/ExtensionScanner/Php/ConstantMatcher.php',
+        ],
+        [
+            'class' => ConstructorArgumentMatcher::class,
+            'configurationFile' => 'EXT:install/Configuration/ExtensionScanner/Php/ConstructorArgumentMatcher.php',
         ],
         [
             'class' => PropertyAnnotationMatcher::class,
@@ -194,6 +209,7 @@ class UpgradeController extends AbstractController
     public function cardsAction(ServerRequestInterface $request): ResponseInterface
     {
         $view = $this->initializeStandaloneView($request, 'Upgrade/Cards.html');
+        $view->assign('extensionFoldersInTypo3conf', (new Finder())->directories()->in(Environment::getExtensionsPath())->depth(0)->count());
         return new JsonResponse([
             'success' => true,
             'html' => $view->render(),
@@ -297,6 +313,7 @@ class UpgradeController extends AbstractController
      */
     public function coreUpdateIsUpdateAvailableAction(): ResponseInterface
     {
+        $action = null;
         $this->coreUpdateInitialize();
         $messageQueue = new FlashMessageQueue('install');
         if ($this->coreVersionService->isInstalledVersionAReleasedVersion()) {
@@ -406,16 +423,11 @@ class UpgradeController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
-            'extensions' => array_keys($this->packageManager->getActivePackages()),
             'html' => $view->render(),
             'buttons' => [
                 [
                     'btnClass' => 'btn-default disabled t3js-extensionCompatTester-check',
                     'text' => 'Check extensions',
-                ],
-                [
-                    'btnClass' => 'btn-default hidden t3js-extensionCompatTester-uninstall',
-                    'text' => 'Uninstall extension',
                 ],
             ],
         ]);
@@ -429,22 +441,26 @@ class UpgradeController extends AbstractController
      */
     public function extensionCompatTesterLoadExtLocalconfAction(ServerRequestInterface $request): ResponseInterface
     {
+        $brokenExtensions = [];
         $container = $this->lateBootService->getContainer();
         $backup = $this->lateBootService->makeCurrent($container);
 
-        $extension = $request->getParsedBody()['install']['extension'];
         foreach ($this->packageManager->getActivePackages() as $package) {
-            $this->extensionCompatTesterLoadExtLocalconfForExtension($package);
-            if ($package->getPackageKey() === $extension) {
-                break;
+            try {
+                $this->extensionCompatTesterLoadExtLocalconfForExtension($package);
+            } catch (\Throwable $e) {
+                $brokenExtensions[] = [
+                    'name' => $package->getPackageKey(),
+                    'isProtected' => $package->isProtected()
+                ];
             }
         }
 
         $this->lateBootService->makeCurrent(null, $backup);
 
         return new JsonResponse([
-            'success' => true,
-        ]);
+            'brokenExtensions' => $brokenExtensions,
+        ], empty($brokenExtensions) ? 200 : 500);
     }
 
     /**
@@ -455,27 +471,31 @@ class UpgradeController extends AbstractController
      */
     public function extensionCompatTesterLoadExtTablesAction(ServerRequestInterface $request): ResponseInterface
     {
+        $brokenExtensions = [];
         $container = $this->lateBootService->getContainer();
         $backup = $this->lateBootService->makeCurrent($container);
 
-        $extension = $request->getParsedBody()['install']['extension'];
         $activePackages = $this->packageManager->getActivePackages();
         foreach ($activePackages as $package) {
             // Load all ext_localconf files first
             $this->extensionCompatTesterLoadExtLocalconfForExtension($package);
         }
         foreach ($activePackages as $package) {
-            $this->extensionCompatTesterLoadExtTablesForExtension($package);
-            if ($package->getPackageKey() === $extension) {
-                break;
+            try {
+                $this->extensionCompatTesterLoadExtTablesForExtension($package);
+            } catch (\Throwable $e) {
+                $brokenExtensions[] = [
+                    'name' => $package->getPackageKey(),
+                    'isProtected' => $package->isProtected()
+                ];
             }
         }
 
         $this->lateBootService->makeCurrent(null, $backup);
 
         return new JsonResponse([
-            'success' => true,
-        ]);
+            'brokenExtensions' => $brokenExtensions,
+        ], empty($brokenExtensions) ? 200 : 500);
     }
 
     /**
@@ -498,6 +518,9 @@ class UpgradeController extends AbstractController
         if (ExtensionManagementUtility::isLoaded($extension)) {
             try {
                 ExtensionManagementUtility::unloadExtension($extension);
+                GeneralUtility::makeInstance(ClearCacheService::class)->clearAll();
+                GeneralUtility::makeInstance(OpcodeCacheService::class)->clearAllActive();
+
                 $messageQueue->enqueue(new FlashMessage(
                     'Extension "' . $extension . '" unloaded.',
                     '',
@@ -676,11 +699,17 @@ class UpgradeController extends AbstractController
         // Parse PHP file to AST and traverse tree calling visitors
         $statements = $parser->parse(file_get_contents($absoluteFilePath));
 
-        $traverser = new NodeTraverser();
         // The built in NameResolver translates class names shortened with 'use' to fully qualified
         // class names at all places. Incredibly useful for us and added as first visitor.
+        // IMPORTANT: first process completely to resolve fully qualified names of arguments
+        // (otherwise GeneratorClassesResolver will NOT get reliable results)
+        $traverser = new NodeTraverser();
         $traverser->addVisitor(new NameResolver());
-        // Understand makeInstance('My\\Package\\Foo\\Bar') as fqdn class name in first argument
+        $statements = $traverser->traverse($statements);
+
+        // IMPORTANT: second process to actually work on the pre-resolved statements
+        $traverser = new NodeTraverser();
+        // Understand GeneralUtility::makeInstance('My\\Package\\Foo\\Bar') as fqdn class name in first argument
         $traverser->addVisitor(new GeneratorClassesResolver());
         // Count ignored lines, effective code lines, ...
         $statistics = new CodeStatistics();
@@ -709,7 +738,7 @@ class UpgradeController extends AbstractController
         $preparedMatches = [];
         foreach ($matches as $match) {
             $preparedHit = [];
-            $preparedHit['uniqueId'] = str_replace('.', '', uniqid((string)mt_rand(), true));
+            $preparedHit['uniqueId'] = str_replace('.', '', uniqid((string)random_int(0, mt_getrandmax()), true));
             $preparedHit['message'] = $match['message'];
             $preparedHit['line'] = $match['line'];
             $preparedHit['indicator'] = $match['indicator'];
@@ -738,7 +767,7 @@ class UpgradeController extends AbstractController
                 array_pop($version);
                 // something like "8.2" .. "8.7" .. "master"
                 $parsedRestFile['version'] = array_pop($version);
-                $parsedRestFile['uniqueId'] = str_replace('.', '', uniqid((string)mt_rand(), true));
+                $parsedRestFile['uniqueId'] = str_replace('.', '', uniqid((string)random_int(0, mt_getrandmax()), true));
                 $preparedHit['restFiles'][] = $parsedRestFile;
             }
             $preparedMatches[] = $preparedHit;
@@ -765,7 +794,11 @@ class UpgradeController extends AbstractController
         $loadTcaService = GeneralUtility::makeInstance(LoadTcaService::class);
         $loadTcaService->loadExtensionTablesWithoutMigration();
         $baseTca = $GLOBALS['TCA'];
+        $container = $this->lateBootService->getContainer();
+        $backup = $this->lateBootService->makeCurrent($container);
         foreach ($this->packageManager->getActivePackages() as $package) {
+            $this->extensionCompatTesterLoadExtLocalconfForExtension($package);
+
             $extensionKey = $package->getPackageKey();
             $extTablesPath = $package->getPackagePath() . 'ext_tables.php';
             if (@file_exists($extTablesPath)) {
@@ -781,6 +814,7 @@ class UpgradeController extends AbstractController
                 $baseTca = $newTca;
             }
         }
+        $this->lateBootService->makeCurrent(null, $backup);
         return new JsonResponse([
             'success' => true,
             'status' => $messageQueue,
@@ -916,11 +950,16 @@ class UpgradeController extends AbstractController
     public function upgradeWizardsBlockingDatabaseAddsAction(): ResponseInterface
     {
         // ext_localconf, db and ext_tables must be loaded for the updates :(
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $adds = $upgradeWizardsService->getBlockingDatabaseAdds();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
+        $adds = [];
         $needsUpdate = false;
-        if (!empty($adds)) {
+        try {
+            $adds = $this->upgradeWizardsService->getBlockingDatabaseAdds();
+            $this->lateBootService->resetGlobalContainer();
+            if (!empty($adds)) {
+                $needsUpdate = true;
+            }
+        } catch (StatementException $exception) {
             $needsUpdate = true;
         }
         return new JsonResponse([
@@ -938,9 +977,9 @@ class UpgradeController extends AbstractController
     public function upgradeWizardsBlockingDatabaseExecuteAction(): ResponseInterface
     {
         // ext_localconf, db and ext_tables must be loaded for the updates :(
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $upgradeWizardsService->addMissingTablesAndFields();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
+        $this->upgradeWizardsService->addMissingTablesAndFields();
+        $this->lateBootService->resetGlobalContainer();
         $messages = new FlashMessageQueue('install');
         $messages->enqueue(new FlashMessage(
             '',
@@ -959,8 +998,7 @@ class UpgradeController extends AbstractController
      */
     public function upgradeWizardsBlockingDatabaseCharsetFixAction(): ResponseInterface
     {
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $upgradeWizardsService->setDatabaseCharsetUtf8();
+        $this->upgradeWizardsService->setDatabaseCharsetUtf8();
         $messages = new FlashMessageQueue('install');
         $messages->enqueue(new FlashMessage(
             '',
@@ -979,8 +1017,7 @@ class UpgradeController extends AbstractController
      */
     public function upgradeWizardsBlockingDatabaseCharsetTestAction(): ResponseInterface
     {
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $result = !$upgradeWizardsService->isDatabaseCharsetUtf8();
+        $result = !$this->upgradeWizardsService->isDatabaseCharsetUtf8();
         return new JsonResponse([
             'success' => true,
             'needsUpdate' => $result,
@@ -994,10 +1031,10 @@ class UpgradeController extends AbstractController
      */
     public function upgradeWizardsDoneUpgradesAction(): ResponseInterface
     {
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $wizardsDone = $upgradeWizardsService->listOfWizardsDone();
-        $rowUpdatersDone = $upgradeWizardsService->listOfRowUpdatersDone();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
+        $wizardsDone = $this->upgradeWizardsService->listOfWizardsDone();
+        $rowUpdatersDone = $this->upgradeWizardsService->listOfRowUpdatersDone();
+        $this->lateBootService->resetGlobalContainer();
         $messages = new FlashMessageQueue('install');
         if (empty($wizardsDone) && empty($rowUpdatersDone)) {
             $messages->enqueue(new FlashMessage(
@@ -1022,10 +1059,10 @@ class UpgradeController extends AbstractController
     public function upgradeWizardsExecuteAction(ServerRequestInterface $request): ResponseInterface
     {
         // ext_localconf, db and ext_tables must be loaded for the updates :(
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
         $identifier = $request->getParsedBody()['install']['identifier'];
-        $messages = $upgradeWizardsService->executeWizard($identifier);
+        $messages = $this->upgradeWizardsService->executeWizard($identifier);
+        $this->lateBootService->resetGlobalContainer();
         return new JsonResponse([
             'success' => true,
             'status' => $messages,
@@ -1041,10 +1078,10 @@ class UpgradeController extends AbstractController
     public function upgradeWizardsInputAction(ServerRequestInterface $request): ResponseInterface
     {
         // ext_localconf, db and ext_tables must be loaded for the updates :(
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
         $identifier = $request->getParsedBody()['install']['identifier'];
-        $result = $upgradeWizardsService->getWizardUserInput($identifier);
+        $result = $this->upgradeWizardsService->getWizardUserInput($identifier);
+        $this->lateBootService->resetGlobalContainer();
         return new JsonResponse([
             'success' => true,
             'status' => [],
@@ -1060,9 +1097,9 @@ class UpgradeController extends AbstractController
     public function upgradeWizardsListAction(): ResponseInterface
     {
         // ext_localconf, db and ext_tables must be loaded for the updates :(
-        $this->loadExtLocalconfDatabaseAndExtTables();
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $wizards = $upgradeWizardsService->getUpgradeWizardsList();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
+        $wizards = $this->upgradeWizardsService->getUpgradeWizardsList();
+        $this->lateBootService->resetGlobalContainer();
         return new JsonResponse([
             'success' => true,
             'status' => [],
@@ -1078,19 +1115,21 @@ class UpgradeController extends AbstractController
      */
     public function upgradeWizardsMarkUndoneAction(ServerRequestInterface $request): ResponseInterface
     {
-        $this->loadExtLocalconfDatabaseAndExtTables();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables(false);
         $wizardToBeMarkedAsUndoneIdentifier = $request->getParsedBody()['install']['identifier'];
-        $upgradeWizardsService = new UpgradeWizardsService();
-        $result = $upgradeWizardsService->markWizardUndone($wizardToBeMarkedAsUndoneIdentifier);
+        $wizardToBeMarkedAsUndone = $this->upgradeWizardsService->getWizardInformationByIdentifier($wizardToBeMarkedAsUndoneIdentifier);
+        $result = $this->upgradeWizardsService->markWizardUndone($wizardToBeMarkedAsUndoneIdentifier);
+        $this->lateBootService->resetGlobalContainer();
         $messages = new FlashMessageQueue('install');
         if ($result) {
             $messages->enqueue(new FlashMessage(
-                'Wizard has been marked undone'
+                'The wizard "' . $wizardToBeMarkedAsUndone['title'] . '" has been marked as undone.',
+                'Wizard marked as undone'
             ));
         } else {
             $messages->enqueue(new FlashMessage(
+                'The wizard "' . $wizardToBeMarkedAsUndone['title'] . '" has not been marked as undone.',
                 'Wizard has not been marked undone',
-                '',
                 FlashMessage::ERROR
             ));
         }
@@ -1137,7 +1176,7 @@ class UpgradeController extends AbstractController
             );
         }
         // @todo: Does the core updater really depend on loaded ext_* files?
-        $this->loadExtLocalconfDatabaseAndExtTables();
+        $this->lateBootService->loadExtLocalconfDatabaseAndExtTables();
     }
 
     /**
@@ -1164,9 +1203,9 @@ class UpgradeController extends AbstractController
      * Loads ext_localconf.php for a single extension. Method is a modified copy of
      * the original bootstrap method.
      *
-     * @param Package $package
+     * @param PackageInterface $package
      */
-    protected function extensionCompatTesterLoadExtLocalconfForExtension(Package $package)
+    protected function extensionCompatTesterLoadExtLocalconfForExtension(PackageInterface $package)
     {
         $extLocalconfPath = $package->getPackagePath() . 'ext_localconf.php';
         if (@file_exists($extLocalconfPath)) {
@@ -1178,9 +1217,9 @@ class UpgradeController extends AbstractController
      * Loads ext_tables.php for a single extension. Method is a modified copy of
      * the original bootstrap method.
      *
-     * @param Package $package
+     * @param PackageInterface $package
      */
-    protected function extensionCompatTesterLoadExtTablesForExtension(Package $package)
+    protected function extensionCompatTesterLoadExtTablesForExtension(PackageInterface $package)
     {
         $extTablesPath = $package->getPackagePath() . 'ext_tables.php';
         if (@file_exists($extTablesPath)) {
@@ -1212,7 +1251,6 @@ class UpgradeController extends AbstractController
         $documentationFiles = $documentationFileService->findDocumentationFiles(
             str_replace('\\', '/', realpath(ExtensionManagementUtility::extPath('core') . 'Documentation/Changelog/' . $version))
         );
-        $documentationFiles = array_reverse($documentationFiles);
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_registry');
         $filesMarkedAsRead = $queryBuilder

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Mail;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,16 +13,16 @@ namespace TYPO3\CMS\Core\Mail;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Mail;
+
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mailer\SentMessage;
-use Symfony\Component\Mailer\SmtpEnvelope;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
-use Symfony\Component\Mime\NamedAddress;
 use Symfony\Component\Mime\RawMessage;
-use TYPO3\CMS\Core\EventDispatcher\EventDispatcher;
 use TYPO3\CMS\Core\Exception as CoreException;
 use TYPO3\CMS\Core\Mail\Event\AfterMailerInitializationEvent;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -58,12 +57,18 @@ class Mailer implements MailerInterface
     protected $mailerHeader = 'TYPO3';
 
     /**
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    /**
      * When constructing, also initializes the Symfony Transport like configured
      *
      * @param TransportInterface|null $transport optionally pass a transport to the constructor.
+     * @param EventDispatcherInterface|null $eventDispatcher
      * @throws CoreException
      */
-    public function __construct(TransportInterface $transport = null)
+    public function __construct(TransportInterface $transport = null, EventDispatcherInterface $eventDispatcher = null)
     {
         if ($transport !== null) {
             $this->transport = $transport;
@@ -77,13 +82,16 @@ class Mailer implements MailerInterface
                 throw new CoreException($e->getMessage(), 1291068569);
             }
         }
-        $this->getEventDispatcher()->dispatch(new AfterMailerInitializationEvent($this));
+        if ($eventDispatcher !== null) {
+            $this->eventDispatcher = $eventDispatcher;
+            $this->eventDispatcher->dispatch(new AfterMailerInitializationEvent($this));
+        }
     }
 
     /**
      * @inheritdoc
      */
-    public function send(RawMessage $message, SmtpEnvelope $envelope = null): void
+    public function send(RawMessage $message, Envelope $envelope = null): void
     {
         if ($message instanceof Email) {
             // Ensure to always have a From: header set
@@ -92,7 +100,7 @@ class Mailer implements MailerInterface
                 if ($address) {
                     $name = MailUtility::getSystemFromName();
                     if ($name) {
-                        $from = new NamedAddress($address, $name);
+                        $from = new Address($address, $name);
                     } else {
                         $from = new Address($address);
                     }
@@ -106,7 +114,7 @@ class Mailer implements MailerInterface
                     if ($address === 0) {
                         $replyTo = new Address($replyTo[$address]);
                     } else {
-                        $replyTo = new NamedAddress(reset($replyTo), $address);
+                        $replyTo = new Address($address, reset($replyTo));
                     }
                     $message->replyTo($replyTo);
                 }
@@ -182,13 +190,5 @@ class Mailer implements MailerInterface
     protected function getTransportFactory(): TransportFactory
     {
         return GeneralUtility::makeInstance(TransportFactory::class);
-    }
-
-    /**
-     * Emits a signal after mailer initialization
-     */
-    protected function getEventDispatcher(): EventDispatcherInterface
-    {
-        return GeneralUtility::makeInstance(EventDispatcher::class);
     }
 }

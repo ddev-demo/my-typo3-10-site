@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Finishers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Form\Domain\Finishers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Form\Domain\Finishers;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -45,7 +47,7 @@ use TYPO3\CMS\Form\Domain\Model\FormElements\FormElementInterface;
  *
  * options.whereClause
  * -------------------
- *   This where clause will be used for an database update action
+ *   This where clause will be used for a database update action
  *
  * options.elements
  * ----------------
@@ -196,6 +198,7 @@ class SaveToDatabaseFinisher extends AbstractFinisher
      */
     protected function executeInternal()
     {
+        $options = [];
         if (isset($this->options['table'])) {
             $options[] = $this->options;
         } else {

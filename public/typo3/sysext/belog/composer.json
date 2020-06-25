@@ -9,21 +9,24 @@
 		"email": "typo3cms@typo3.org",
 		"role": "Developer"
 	}],
+	"support": {
+		"chat": "https://typo3.org/help",
+		"docs": "https://docs.typo3.org",
+		"issues": "https://forge.typo3.org",
+		"source": "https://github.com/TYPO3/TYPO3.CMS"
+	},
 	"config": {
 		"sort-packages": true
 	},
 	"require": {
-		"typo3/cms-core": "10.1.0"
+		"typo3/cms-core": "10.4.4"
 	},
 	"conflict": {
 		"typo3/cms": "*"
 	},
-	"replace": {
-		"belog": "*"
-	},
 	"extra": {
 		"branch-alias": {
-			"dev-master": "10.1.x-dev"
+			"dev-master": "10.4.x-dev"
 		},
 		"typo3/cms": {
 			"Package": {

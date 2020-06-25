@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Localization\LanguageService;
@@ -106,8 +107,13 @@ class InputDateTimeElement extends AbstractFormElement
         $fieldInformationHtml = $fieldInformationResult['html'];
         $resultArray = $this->mergeChildReturnIntoExistingResult($resultArray, $fieldInformationResult, false);
 
+        // Early return for read only fields
         if (isset($config['readOnly']) && $config['readOnly']) {
-            // Early return for read only fields
+            // Ensure dbType values (see DatabaseRowDateTimeFields) are converted to a UNIX timestamp before rendering read-only
+            if (!empty($itemValue) && !MathUtility::canBeInterpretedAsInteger($itemValue)) {
+                $itemValue = (new \DateTime($itemValue))->getTimestamp();
+            }
+            // Format the unix-timestamp to the defined format (date/year etc)
             $itemValue = $this->formatValue($format, $itemValue);
             $html = [];
             $html[] = '<div class="formengine-field-item t3js-formengine-field-item">';
@@ -124,9 +130,10 @@ class InputDateTimeElement extends AbstractFormElement
             return $resultArray;
         }
 
+        $fieldId = StringUtility::getUniqueId('formengine-input-');
         $attributes = [
             'value' => '',
-            'id' => StringUtility::getUniqueId('formengine-input-'),
+            'id' => $fieldId,
             'class' => implode(' ', [
                 't3js-datetimepicker',
                 'form-control',
@@ -160,7 +167,7 @@ class InputDateTimeElement extends AbstractFormElement
                 // (moment.js can only handle UTC or browser's local timezone), we need to offset the value
                 // to eliminate the timezone. JS will receive all dates as if they were UTC, which we undo on save in DataHandler
                 $adjustedValue = $itemValue + date('Z', (int)$itemValue);
-                // output date as a ISO-8601 date
+                // output date as an ISO-8601 date
                 $itemValue = gmdate('c', $adjustedValue);
             }
             if (isset($config['range']['lower'])) {
@@ -189,7 +196,7 @@ class InputDateTimeElement extends AbstractFormElement
         $expansionHtml[] =  '<div class="form-wizards-wrap">';
         $expansionHtml[] =      '<div class="form-wizards-element">';
         $expansionHtml[] =          '<div class="input-group">';
-        $expansionHtml[] =              '<input type="text"' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
+        $expansionHtml[] =              '<input type="text" ' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
         $expansionHtml[] =              '<input type="hidden" name="' . $parameterArray['itemFormElName'] . '" value="' . htmlspecialchars($itemValue) . '" />';
         $expansionHtml[] =              '<span class="input-group-btn">';
         $expansionHtml[] =                  '<label class="btn btn-default" for="' . $attributes['id'] . '">';
@@ -261,7 +268,7 @@ class InputDateTimeElement extends AbstractFormElement
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-placeholder">';
             $fullElement[] =    '<div class="form-control-wrap" style="max-width:' . $width . 'px">';
-            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . $shortenedPlaceholder . '" />';
+            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . htmlspecialchars($shortenedPlaceholder) . '" />';
             $fullElement[] =    '</div>';
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-formfield">';
@@ -270,7 +277,11 @@ class InputDateTimeElement extends AbstractFormElement
             $fullElement = implode(LF, $fullElement);
         }
 
-        $resultArray['requireJsModules'][] = 'TYPO3/CMS/Backend/FormEngine/Element/InputDateTimeElement';
+        $resultArray['requireJsModules'][] = ['TYPO3/CMS/Backend/FormEngine/Element/InputDateTimeElement' => '
+            function(InputDateTimeElement) {
+                new InputDateTimeElement(' . GeneralUtility::quoteJSvalue($fieldId) . ');
+            }'
+        ];
         $resultArray['html'] = '<div class="formengine-field-item t3js-formengine-field-item">' . $fieldInformationHtml . $fullElement . '</div>';
         return $resultArray;
     }

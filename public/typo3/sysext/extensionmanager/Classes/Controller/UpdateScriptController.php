@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,10 +12,14 @@ namespace TYPO3\CMS\Extensionmanager\Controller;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extensionmanager\Controller;
+
 use TYPO3\CMS\Backend\Template\Components\ButtonBar;
 use TYPO3\CMS\Backend\View\BackendTemplateView;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Extbase\Mvc\View\ViewInterface;
+use TYPO3\CMS\Extensionmanager\Utility\UpdateScriptUtility;
 
 /**
  * Controller for configuration related actions.
@@ -47,8 +50,7 @@ class UpdateScriptController extends AbstractModuleController
      */
     public function showAction($extensionKey)
     {
-        /** @var \TYPO3\CMS\Extensionmanager\Utility\UpdateScriptUtility $updateScriptUtility */
-        $updateScriptUtility = $this->objectManager->get(\TYPO3\CMS\Extensionmanager\Utility\UpdateScriptUtility::class);
+        $updateScriptUtility = $this->objectManager->get(UpdateScriptUtility::class);
         $updateScriptResult = $updateScriptUtility->executeUpdateIfNeeded($extensionKey);
         $this->view
             ->assign('updateScriptResult', $updateScriptResult)

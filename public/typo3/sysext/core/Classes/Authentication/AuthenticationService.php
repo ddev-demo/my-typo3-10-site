@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,11 +13,16 @@ namespace TYPO3\CMS\Core\Authentication;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Authentication;
+
 use TYPO3\CMS\Core\Crypto\PasswordHashing\InvalidPasswordHashException;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\SysLog\Action\Login as SystemLogLoginAction;
+use TYPO3\CMS\Core\SysLog\Error as SystemLogErrorClassification;
+use TYPO3\CMS\Core\SysLog\Type as SystemLogType;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -39,6 +43,7 @@ class AuthenticationService extends AbstractAuthenticationService
     {
         $isProcessed = false;
         if ($passwordTransmissionStrategy === 'normal') {
+            $loginData = array_map('trim', $loginData);
             $loginData['uident_text'] = $loginData['uident'];
             $isProcessed = true;
         }
@@ -57,7 +62,7 @@ class AuthenticationService extends AbstractAuthenticationService
         }
         if ((string)$this->login['uident_text'] === '') {
             // Failed Login attempt (no password given)
-            $this->writelog(255, 3, 3, 2, 'Login-attempt from ###IP### for username \'%s\' with an empty password!', [
+            $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::ATTEMPT, SystemLogErrorClassification::SECURITY_NOTICE, 2, 'Login-attempt from ###IP### for username \'%s\' with an empty password!', [
                 $this->login['uname']
             ]);
             $this->logger->warning(sprintf('Login-attempt from %s, for username \'%s\' with an empty password!', $this->authInfo['REMOTE_ADDR'], $this->login['uname']));
@@ -67,7 +72,7 @@ class AuthenticationService extends AbstractAuthenticationService
         $user = $this->fetchUserRecord($this->login['uname']);
         if (!is_array($user)) {
             // Failed login attempt (no username found)
-            $this->writelog(255, 3, 3, 2, 'Login-attempt from ###IP###, username \'%s\' not found!!', [$this->login['uname']]);
+            $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::ATTEMPT, SystemLogErrorClassification::SECURITY_NOTICE, 2, 'Login-attempt from ###IP###, username \'%s\' not found!!', [$this->login['uname']]);
             $this->logger->info('Login-attempt from username \'' . $this->login['uname'] . '\' not found!', [
                 'REMOTE_ADDR' => $this->authInfo['REMOTE_ADDR']
             ]);
@@ -120,14 +125,14 @@ class AuthenticationService extends AbstractAuthenticationService
         // Get a hashed password instance for the hash stored in db of this user
         $invalidPasswordHashException = null;
         try {
-            $hashInstance = $saltFactory->get($passwordHashInDatabase, TYPO3_MODE);
+            $hashInstance = $saltFactory->get($passwordHashInDatabase, $this->pObj->loginType);
         } catch (InvalidPasswordHashException $invalidPasswordHashException) {
             // Could not find a responsible hash algorithm for given password. This is unusual since other
             // authentication services would usually be called before this one with higher priority. We thus log
             // the failed login but still return '100' to proceed with other services that may follow.
             $message = 'Login-attempt from ###IP###, username \'%s\', no suitable hash method found!';
             $this->writeLogMessage($message, $submittedUsername);
-            $this->writelog(255, 3, 3, 1, $message, [$submittedUsername]);
+            $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::ATTEMPT, SystemLogErrorClassification::SECURITY_NOTICE, 1, $message, [$submittedUsername]);
             $this->logger->info(sprintf($message, $submittedUsername));
             // Not responsible, check other services
             return 100;
@@ -135,7 +140,7 @@ class AuthenticationService extends AbstractAuthenticationService
 
         // An instance of the currently configured salted password mechanism
         // Don't catch InvalidPasswordHashException here: Only install tool should handle those configuration failures
-        $defaultHashInstance = $saltFactory->getDefaultHashInstance(TYPO3_MODE);
+        $defaultHashInstance = $saltFactory->getDefaultHashInstance($this->pObj->loginType);
 
         // We found a hash class that can handle this type of hash
         $isValidPassword = $hashInstance->checkPassword($submittedPassword, $passwordHashInDatabase);
@@ -158,9 +163,9 @@ class AuthenticationService extends AbstractAuthenticationService
 
         if (!$isValidPassword) {
             // Failed login attempt - wrong password
-            $this->writeLogMessage(TYPO3_MODE . ' Authentication failed - wrong password for username \'%s\'', $submittedUsername);
+            $this->writeLogMessage($this->pObj->loginType . ' Authentication failed - wrong password for username \'%s\'', $submittedUsername);
             $message = 'Login-attempt from ###IP###, username \'%s\', password not accepted!';
-            $this->writelog(255, 3, 3, 1, $message, [$submittedUsername]);
+            $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::ATTEMPT, SystemLogErrorClassification::SECURITY_NOTICE, 1, $message, [$submittedUsername]);
             $this->logger->info(sprintf($message, $submittedUsername));
             // Responsible, authentication failed, do NOT check other services
             return 0;
@@ -170,7 +175,7 @@ class AuthenticationService extends AbstractAuthenticationService
             // Password ok, but configured domain lock not met
             $errorMessage = 'Login-attempt from ###IP###, username \'%s\', locked domain \'%s\' did not match \'%s\'!';
             $this->writeLogMessage($errorMessage, $user[$this->db_user['username_column']], $configuredDomainLock, $queriedDomain);
-            $this->writelog(255, 3, 3, 1, $errorMessage, [$user[$this->db_user['username_column']], $configuredDomainLock, $queriedDomain]);
+            $this->writelog(SystemLogType::LOGIN, SystemLogLoginAction::ATTEMPT, SystemLogErrorClassification::SECURITY_NOTICE, 1, $errorMessage, [$user[$this->db_user['username_column']], $configuredDomainLock, $queriedDomain]);
             $this->logger->info(sprintf($errorMessage, $user[$this->db_user['username_column']], $configuredDomainLock, $queriedDomain));
             // Responsible, authentication ok, but domain lock not ok, do NOT check other services
             return 0;
@@ -186,7 +191,7 @@ class AuthenticationService extends AbstractAuthenticationService
         }
 
         // Responsible, authentication ok, domain lock ok. Log successful login and return 'auth ok, do NOT check other services'
-        $this->writeLogMessage(TYPO3_MODE . ' Authentication successful for username \'%s\'', $submittedUsername);
+        $this->writeLogMessage($this->pObj->loginType . ' Authentication successful for username \'%s\'', $submittedUsername);
         return 200;
     }
 
@@ -349,14 +354,14 @@ class AuthenticationService extends AbstractAuthenticationService
      * parameters. The syntax is the same as for sprintf()
      *
      * @param string $message Message to output
-     * @param array|mixed[] $params
+     * @param array<int,mixed> $params
      */
     protected function writeLogMessage(string $message, ...$params): void
     {
         if (!empty($params)) {
             $message = vsprintf($message, $params);
         }
-        if (TYPO3_MODE === 'FE') {
+        if ($this->pObj->loginType === 'FE') {
             $timeTracker = GeneralUtility::makeInstance(TimeTracker::class);
             $timeTracker->setTSlogMessage($message);
         }

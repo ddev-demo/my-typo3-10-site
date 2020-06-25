@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Frontend\DataProcessing;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +14,8 @@ namespace TYPO3\CMS\Frontend\DataProcessing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\DataProcessing;
 
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Site\Entity\NullSite;
@@ -439,8 +440,8 @@ class LanguageMenuProcessor implements DataProcessorInterface
     /**
      * Returns the data from the field and language submitted by $conf in JSON format
      *
-     * @param string Empty string (no content to process)
-     * @param array TypoScript configuration
+     * @param string $content Empty string (no content to process)
+     * @param array $conf TypoScript configuration
      * @return string JSON encoded data
      * @throws \InvalidArgumentException
      * @throws \TYPO3\CMS\Core\Exception\SiteNotFoundException

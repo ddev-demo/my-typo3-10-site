@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Type\File;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,9 @@ namespace TYPO3\CMS\Core\Type\File;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Type\File;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Imaging\GraphicalFunctions;
@@ -120,7 +122,7 @@ class ImageInfo extends FileInfo implements LoggerAwareInterface
         $fileContent = file_get_contents($this->getPathname());
         // Disables the functionality to allow external entities to be loaded when parsing the XML, must be kept
         $previousValueOfEntityLoader = libxml_disable_entity_loader(true);
-        $xml = simplexml_load_string($fileContent, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xml = simplexml_load_string($fileContent, \SimpleXMLElement::class, LIBXML_NOERROR | LIBXML_NOWARNING);
 
         // If something went wrong with simpleXml don't try to read information
         if ($xml === false) {

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Cache\Frontend;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Cache\Frontend;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Cache\Frontend;
 
 /**
  * Contract for a Cache (frontend)
@@ -28,7 +29,7 @@ interface FrontendInterface
      */
     const TAG_PACKAGE = '%PACKAGE%';
     /**
-     * Pattern an entry identifer must match.
+     * Pattern an entry identifier must match.
      */
     const PATTERN_ENTRYIDENTIFIER = '/^[a-zA-Z0-9_%\\-&]{1,250}$/';
     /**

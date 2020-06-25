@@ -1,4 +1,5 @@
 <?php
+
 $EM_CONF[$_EXTKEY] = [
     'title' => 'Fluid Templating Engine',
     'description' => 'Fluid is a next-generation templating engine which makes the life of extension authors a lot easier!',
@@ -8,11 +9,11 @@ $EM_CONF[$_EXTKEY] = [
     'author_company' => '',
     'state' => 'stable',
     'clearCacheOnLoad' => 0,
-    'version' => '10.1.0',
+    'version' => '10.4.4',
     'constraints' => [
         'depends' => [
-            'core' => '10.1.0',
-            'extbase' => '10.1.0',
+            'core' => '10.4.4',
+            'extbase' => '10.4.4',
         ],
         'conflicts' => [],
         'suggests' => [],

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Crypto\PasswordHashing;
 
 /**
  * Interface with public methods needed to be implemented
@@ -32,7 +34,7 @@ interface PasswordHashInterface
     public function checkPassword(string $plainPW, string $saltedHashPW): bool;
 
     /**
-     * Returns whether all prequesites for the hashing methods are matched
+     * Returns whether all prerequisites for the hashing methods are matched
      *
      * @return bool Method available
      */

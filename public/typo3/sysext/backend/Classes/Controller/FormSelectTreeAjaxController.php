@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Controller;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Controller;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Controller;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -36,8 +37,8 @@ class FormSelectTreeAjaxController
      */
     public function fetchDataAction(ServerRequestInterface $request): ResponseInterface
     {
-        $tableName = $request->getQueryParams()['tableName'];
-        $fieldName = $request->getQueryParams()['fieldName'];
+        $tableName = $request->getQueryParams()['tableName'] ?? '';
+        $fieldName = $request->getQueryParams()['fieldName'] ?? '';
 
         // Prepare processedTca: Remove all column definitions except the one that contains
         // our tree definition. This way only this field is calculated, everything else is ignored.
@@ -179,6 +180,6 @@ class FormSelectTreeAjaxController
         } else {
             $treeData = $formData['processedTca']['columns'][$fieldName]['config']['items'];
         }
-        return (new JsonResponse())->setPayload($treeData);
+        return (new JsonResponse())->setPayload($treeData ?? []);
     }
 }

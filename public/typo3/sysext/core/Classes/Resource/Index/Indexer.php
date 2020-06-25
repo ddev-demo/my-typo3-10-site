@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Index;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,13 @@ namespace TYPO3\CMS\Core\Resource\Index;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Index;
+
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Resource\Exception\IllegalFileExtensionException;
 use TYPO3\CMS\Core\Resource\Exception\InsufficientFileAccessPermissionsException;
+use TYPO3\CMS\Core\Resource\Exception\InvalidHashException;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
@@ -24,10 +28,12 @@ use TYPO3\CMS\Core\Type\File\ImageInfo;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
- * The New FAL Indexer
+ * The FAL Indexer
  */
-class Indexer
+class Indexer implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * @var array
      */
@@ -65,7 +71,7 @@ class Indexer
      */
     public function createIndexEntry($identifier): File
     {
-        if (!isset($identifier) || !is_string($identifier) || $identifier === '') {
+        if (!is_string($identifier) || $identifier === '') {
             throw new \InvalidArgumentException(
                 'Invalid file identifier given. It must be of type string and not empty. "' . gettype($identifier) . '" given.',
                 1401732565
@@ -228,34 +234,45 @@ class Indexer
     protected function processChangedAndNewFiles()
     {
         foreach ($this->filesToUpdate as $identifier => $data) {
-            if ($data == null) {
-                // search for files with same content hash in indexed storage
-                $fileHash = $this->storage->hashFileByIdentifier($identifier, 'sha1');
-                $files = $this->getFileIndexRepository()->findByContentHash($fileHash);
-                $fileObject = null;
-                if (!empty($files)) {
-                    foreach ($files as $fileIndexEntry) {
-                        // check if file is missing then we assume it's moved/renamed
-                        if (!$this->storage->hasFile($fileIndexEntry['identifier'])) {
-                            $fileObject = $this->getResourceFactory()->getFileObject($fileIndexEntry['uid'], $fileIndexEntry);
-                            $fileObject->updateProperties([
-                                'identifier' => $identifier
-                            ]);
-                            $this->updateIndexEntry($fileObject);
-                            $this->identifiedFileUids[] = $fileObject->getUid();
-                            break;
+            try {
+                if ($data === null) {
+                    // search for files with same content hash in indexed storage
+                    $fileHash = $this->storage->hashFileByIdentifier($identifier, 'sha1');
+                    $files = $this->getFileIndexRepository()->findByContentHash($fileHash);
+                    $fileObject = null;
+                    if (!empty($files)) {
+                        foreach ($files as $fileIndexEntry) {
+                            // check if file is missing then we assume it's moved/renamed
+                            if (!$this->storage->hasFile($fileIndexEntry['identifier'])) {
+                                $fileObject = $this->getResourceFactory()->getFileObject(
+                                    $fileIndexEntry['uid'],
+                                    $fileIndexEntry
+                                );
+                                $fileObject->updateProperties(
+                                    [
+                                        'identifier' => $identifier,
+                                    ]
+                                );
+                                $this->updateIndexEntry($fileObject);
+                                $this->identifiedFileUids[] = $fileObject->getUid();
+                                break;
+                            }
                         }
                     }
+                    // create new index when no missing file with same content hash is found
+                    if ($fileObject === null) {
+                        $fileObject = $this->createIndexEntry($identifier);
+                        $this->identifiedFileUids[] = $fileObject->getUid();
+                    }
+                } else {
+                    // update existing file
+                    $fileObject = $this->getResourceFactory()->getFileObject($data['uid'], $data);
+                    $this->updateIndexEntry($fileObject);
                 }
-                // create new index when no missing file with same content hash is found
-                if ($fileObject === null) {
-                    $fileObject = $this->createIndexEntry($identifier);
-                    $this->identifiedFileUids[] = $fileObject->getUid();
-                }
-            } else {
-                // update existing file
-                $fileObject = $this->getResourceFactory()->getFileObject($data['uid'], $data);
-                $this->updateIndexEntry($fileObject);
+            } catch (InvalidHashException $e) {
+                $this->logger->error('Unable to create hash for file ' . $identifier);
+            } catch (\Exception $e) {
+                $this->logger->error('Unable to index / update file with identifier ' . $identifier . ' (Error: ' . $e->getMessage() . ')');
             }
         }
     }
@@ -294,8 +311,9 @@ class Indexer
      *
      * @param string $identifier
      * @return array
+     * @throws \TYPO3\CMS\Core\Resource\Exception\InvalidHashException
      */
-    protected function gatherFileInformationArray($identifier)
+    protected function gatherFileInformationArray($identifier): array
     {
         $fileInfo = $this->storage->getFileInfoByIdentifier($identifier);
         $fileInfo = $this->transformFromDriverFileInfoArrayToFileObjectFormat($fileInfo);
@@ -314,7 +332,7 @@ class Indexer
      */
     protected function getFileType($mimeType)
     {
-        list($fileType) = explode('/', $mimeType);
+        [$fileType] = explode('/', $mimeType);
         switch (strtolower($fileType)) {
             case 'text':
                 $type = File::FILETYPE_TEXT;
@@ -397,7 +415,7 @@ class Indexer
      */
     protected function getResourceFactory()
     {
-        return ResourceFactory::getInstance();
+        return GeneralUtility::makeInstance(ResourceFactory::class);
     }
 
     /**

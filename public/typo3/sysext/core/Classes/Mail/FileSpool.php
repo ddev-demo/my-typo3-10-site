@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\Mail;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,13 +15,15 @@ namespace TYPO3\CMS\Core\Mail;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Mail;
+
 use DirectoryIterator;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
-use Symfony\Component\Mailer\DelayedSmtpEnvelope;
+use Symfony\Component\Mailer\DelayedEnvelope;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\SentMessage;
-use Symfony\Component\Mailer\SmtpEnvelope;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
@@ -156,8 +157,8 @@ class FileSpool extends AbstractTransport implements DelayedTransportInterface, 
                         RawMessage::class,
                         Message::class,
                         Email::class,
-                        DelayedSmtpEnvelope::class,
-                        SmtpEnvelope::class,
+                        DelayedEnvelope::class,
+                        Envelope::class,
                     ],
                 ]);
 
@@ -166,7 +167,7 @@ class FileSpool extends AbstractTransport implements DelayedTransportInterface, 
 
                 unlink($file . '.sending');
             } else {
-                /* This message has just been catched by another process */
+                /* This message has just been caught by another process */
                 continue;
             }
 
@@ -195,7 +196,7 @@ class FileSpool extends AbstractTransport implements DelayedTransportInterface, 
         $ret = '';
         $strlen = strlen($base);
         for ($i = 0; $i < $count; ++$i) {
-            $ret .= $base[((int)rand(0, $strlen - 1))];
+            $ret .= $base[((int)random_int(0, $strlen - 1))];
         }
 
         return $ret;
@@ -239,5 +240,21 @@ class FileSpool extends AbstractTransport implements DelayedTransportInterface, 
     public function getTimeLimit(): int
     {
         return $this->timeLimit;
+    }
+
+    public function __toString(): string
+    {
+        $result = '';
+        $directoryIterator = new DirectoryIterator($this->path);
+        foreach ($directoryIterator as $file) {
+            $file = $file->getRealPath();
+
+            if (substr($file, -8) != '.message') {
+                continue;
+            }
+
+            $result .= file_get_contents($file) . "\n";
+        }
+        return $result;
     }
 }

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Impexp\Hook;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +13,8 @@ namespace TYPO3\CMS\Impexp\Hook;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Impexp\Hook;
+
 use TYPO3\CMS\Backend\Controller\BackendController;
 use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Page\PageRenderer;
@@ -21,7 +22,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * This class adds import export related JavaScript to the backend
- * @internal this is a internal TYPO3 hook implementation and solely used for EXT:impexp and not part of TYPO3's Core API.
+ * @internal this is an internal TYPO3 hook implementation and solely used for EXT:impexp and not part of TYPO3's Core API.
  */
 class BackendControllerHook
 {

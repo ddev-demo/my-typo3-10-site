@@ -1,5 +1,6 @@
 <?php
-declare(strict_types = 1);
+
+declare(strict_types=1);
 namespace TYPO3\CMS\Extbase;
 
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
@@ -10,9 +11,10 @@ return function (ContainerConfigurator $containerConfigurator, ContainerBuilder 
     $container->registerForAutoconfiguration(Mvc\RequestHandlerInterface::class)->addTag('extbase.request_handler');
     $container->registerForAutoconfiguration(Mvc\Controller\ControllerInterface::class)->addTag('extbase.controller');
     $container->registerForAutoconfiguration(Mvc\Controller\AbstractController::class)->addTag('extbase.prototype_controller');
+    $container->registerForAutoconfiguration(Mvc\Controller\ActionController::class)->addTag('extbase.action_controller');
     $container->registerForAutoconfiguration(Mvc\View\ViewInterface::class)->addTag('extbase.view');
 
-    $container->addCompilerPass(new class implements CompilerPassInterface {
+    $container->addCompilerPass(new class() implements CompilerPassInterface {
         public function process(ContainerBuilder $container): void
         {
             foreach ($container->findTaggedServiceIds('extbase.request_handler') as $id => $tags) {
@@ -22,6 +24,9 @@ return function (ContainerConfigurator $containerConfigurator, ContainerBuilder 
                 $container->findDefinition($id)->setPublic(true);
             }
             foreach ($container->findTaggedServiceIds('extbase.prototype_controller') as $id => $tags) {
+                $container->findDefinition($id)->setShared(false);
+            }
+            foreach ($container->findTaggedServiceIds('extbase.action_controller') as $id => $tags) {
                 $container->findDefinition($id)->setShared(false);
             }
             foreach ($container->findTaggedServiceIds('extbase.view') as $id => $tags) {

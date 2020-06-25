@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\View\BackendLayout;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,8 +13,14 @@ namespace TYPO3\CMS\Backend\View\BackendLayout;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\View\BackendLayout;
+
+use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Backend\View\BackendLayoutView;
+use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
+use TYPO3\CMS\Core\Database\Query\Restriction\WorkspaceRestriction;
 use TYPO3\CMS\Core\Resource\FileRepository;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
@@ -70,14 +75,7 @@ class DefaultDataProvider implements DataProviderInterface
             return $this->createDefaultBackendLayout();
         }
 
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable($this->tableName);
-        $data = $queryBuilder
-            ->select('*')
-            ->from($this->tableName)
-            ->where($queryBuilder->expr()->eq('uid', $queryBuilder->createNamedParameter($identifier, \PDO::PARAM_INT)))
-            ->execute()
-            ->fetch();
+        $data = BackendUtility::getRecordWSOL($this->tableName, $identifier);
 
         if (is_array($data)) {
             $backendLayout = $this->createBackendLayout($data);
@@ -96,7 +94,7 @@ class DefaultDataProvider implements DataProviderInterface
         return BackendLayout::create(
             'default',
             'LLL:EXT:frontend/Resources/Private/Language/locallang_tca.xlf:pages.backend_layout.default',
-            \TYPO3\CMS\Backend\View\BackendLayoutView::getDefaultColumnLayout()
+            BackendLayoutView::getDefaultColumnLayout()
         );
     }
 
@@ -147,6 +145,13 @@ class DefaultDataProvider implements DataProviderInterface
         // Add layout records
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
             ->getQueryBuilderForTable($this->tableName);
+        $queryBuilder->getRestrictions()
+            ->add(
+                GeneralUtility::makeInstance(
+                    WorkspaceRestriction::class,
+                    GeneralUtility::makeInstance(Context::class)->getPropertyFromAspect('workspace', 'id')
+                )
+            );
         $queryBuilder
             ->select('*')
             ->from($this->tableName)
@@ -192,9 +197,15 @@ class DefaultDataProvider implements DataProviderInterface
             $queryBuilder->orderBy($GLOBALS['TCA'][$this->tableName]['ctrl']['sortby']);
         }
 
-        $results = $queryBuilder
-            ->execute()
-            ->fetchAll();
+        $statement = $queryBuilder->execute();
+
+        $results = [];
+        while ($record = $statement->fetch()) {
+            BackendUtility::workspaceOL($this->tableName, $record);
+            if (is_array($record)) {
+                $results[$record['t3ver_oid'] ?: $record['uid']] = $record;
+            }
+        }
 
         return $results;
     }

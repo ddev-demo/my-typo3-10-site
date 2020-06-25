@@ -39,6 +39,10 @@ The 'DeleteUploads finisher' removes submitted files. Use this finisher,
 for example, after the email finisher if you do not want to keep the files
 within your TYPO3 installation.
 
+.. note::
+
+   Finishers are only executed on successfully submitted forms. If a user uploads a file but
+   does not finish the form successfully, the uploaded files will not be deleted.
 
 .. _concepts-finishers-emailfinisher:
 
@@ -81,6 +85,87 @@ SaveToDatabase finisher
 The 'SaveToDatabase finisher' saves the data of a submitted form into a
 database table.
 
+Here is an example for adding uploads to ext:news (fal_related_files and fal_media).
+
+.. code-block:: yaml
+
+  -
+    identifier: SaveToDatabase
+    options:
+      -
+        table: tx_news_domain_model_news
+        mode: insert
+        elements:
+          my-field:
+            mapOnDatabaseColumn: bodytext
+          imageupload-1:
+            mapOnDatabaseColumn: fal_media
+          fileupload-1:
+            mapOnDatabaseColumn: fal_related_files
+        databaseColumnMappings:
+          pid:
+            value: 3
+          tstamp:
+            value: '{__currentTimestamp}'
+          datetime:
+            value: '{__currentTimestamp}'
+          crdate:
+            value: '{__currentTimestamp}'
+          hidden:
+            value: 1
+      -
+        table: sys_file_reference
+        mode: insert
+        elements:
+          imageupload-1:
+            mapOnDatabaseColumn: uid_local
+            skipIfValueIsEmpty: true
+        databaseColumnMappings:
+          table_local:
+            value: sys_file
+          tablenames:
+            value: tx_news_domain_model_news
+          fieldname:
+            value: fal_media
+          tstamp:
+            value: '{__currentTimestamp}'
+          crdate:
+            value: '{__currentTimestamp}'
+          showinpreview:
+            value: 1
+          uid_foreign:
+            value: '{SaveToDatabase.insertedUids.0}'
+      -
+        table: sys_file_reference
+        mode: insert
+        elements:
+          fileupload-1:
+            mapOnDatabaseColumn: uid_local
+            skipIfValueIsEmpty: true
+        databaseColumnMappings:
+          table_local:
+            value: sys_file
+          tablenames:
+            value: tx_news_domain_model_news
+          fieldname:
+            value: fal_related_files
+          tstamp:
+            value: '{__currentTimestamp}'
+          crdate:
+            value: '{__currentTimestamp}'
+          uid_foreign:
+            value: '{SaveToDatabase.insertedUids.0}'
+      -
+        table: sys_file_reference
+        mode: update
+        whereClause:
+          uid_foreign: '{SaveToDatabase.insertedUids.0}'
+          uid_local: 0
+        databaseColumnMappings:
+           pid:
+             value: 0
+           uid_foreign:
+             value: 0
 
 .. _concepts-finishers-translation:
 
@@ -207,7 +292,7 @@ submitted form values (assuming you are using the ``parseOption()`` method).
 You can access values of the ``FormRuntime`` and thus values of each single
 form element by encapsulating the option values with ``{}``. If there is a
 form element with the ``identifier`` 'subject', you can access its value
-within the the finisher configuration. Check out the following example to
+within the finisher configuration. Check out the following example to
 get the whole idea.
 
 .. code-block:: yaml

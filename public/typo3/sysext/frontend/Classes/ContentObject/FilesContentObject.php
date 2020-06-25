@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -65,7 +66,9 @@ class FilesContentObject extends AbstractContentObject
 
         $end = MathUtility::forceIntegerInRange($start + $limit, $start, $availableFileObjectCount);
 
-        $GLOBALS['TSFE']->register['FILES_COUNT'] = min($limit, $availableFileObjectCount);
+        if (isset($GLOBALS['TSFE'])) {
+            $GLOBALS['TSFE']->register['FILES_COUNT'] = min($limit, $availableFileObjectCount);
+        }
         $fileObjectCounter = 0;
         $keys = array_keys($fileObjects);
 
@@ -74,9 +77,11 @@ class FilesContentObject extends AbstractContentObject
             $key = $keys[$i];
             $fileObject = $fileObjects[$key];
 
-            $GLOBALS['TSFE']->register['FILE_NUM_CURRENT'] = $fileObjectCounter;
+            if (isset($GLOBALS['TSFE'])) {
+                $GLOBALS['TSFE']->register['FILE_NUM_CURRENT'] = $fileObjectCounter;
+            }
             $this->cObj->setCurrentFile($fileObject);
-            $content .= $this->cObj->cObjGetSingle($splitConf[$key]['renderObj'], $splitConf[$key]['renderObj.']);
+            $content .= $this->cObj->cObjGetSingle($splitConf[$key]['renderObj'], $splitConf[$key]['renderObj.'], 'renderObj');
             $fileObjectCounter++;
         }
 

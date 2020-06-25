@@ -1,7 +1,6 @@
 <?php
-declare(strict_types = 1);
 
-namespace TYPO3\CMS\Core\MetaTag;
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -16,6 +15,8 @@ namespace TYPO3\CMS\Core\MetaTag;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\MetaTag;
+
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -25,8 +26,19 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class MetaTagManagerRegistry implements SingletonInterface
 {
+    /**
+     * @var mixed[]
+     */
     protected $registry = [];
+
+    /**
+     * @var mixed[]
+     */
     private $instances = [];
+
+    /**
+     * @var MetaTagManagerInterface[]|null
+     */
     private $managers;
 
     public function __construct()

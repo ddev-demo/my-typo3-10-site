@@ -3,7 +3,7 @@ return [
     'BE' => [
         'debug' => false,
         'explicitADmode' => 'explicitAllow',
-        'installToolPassword' => '$argon2i$v=19$m=65536,t=16,p=2$ZlRkODZIY0g1M1d1WlF1Ng$BnnIZ9PwfQE1aAdVkX3zAtbLUfJ+rFL7/WwzR3G19K0',
+        'installToolPassword' => '$argon2i$v=19$m=65536,t=16,p=1$UWh5UGhTcms0R0U5VGg1Mg$LIglY4LkLPMFEBL5XbSH38R72L9meoDZh+UxqW8vwM0',
         'loginSecurityLevel' => 'normal',
         'passwordHashing' => [
             'className' => 'TYPO3\\CMS\\Core\\Crypto\\PasswordHashing\\Argon2iPasswordHash',
@@ -48,6 +48,21 @@ return [
         'processor_path' => '/usr/bin/',
         'processor_path_lzw' => '/usr/bin/',
     ],
+    'LOG' => [
+        'TYPO3' => [
+            'CMS' => [
+                'deprecations' => [
+                    'writerConfiguration' => [
+                        'notice' => [
+                            'TYPO3\CMS\Core\Log\Writer\FileWriter' => [
+                                'disabled' => true,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
     'MAIL' => [
         'transport' => 'sendmail',
         'transport_sendmail_command' => '/usr/local/bin/mailhog sendmail test@example.org --smtp-addr 127.0.0.1:1025',
@@ -90,13 +105,15 @@ return [
         ],
         'devIPmask' => '',
         'displayErrors' => 0,
-        'encryptionKey' => '3b72ef4fee654c82acddb2e398bb683a0755f7fbd6025e1e244c352fd186cff2e2fc132e0186011adbad52bbed1dbba2',
+        'encryptionKey' => '573b8609fbfb0473694195401d7308a28660272e23d2d0f44673f79fd5fbd0f1de926d2376ddb4ec2f9034aa88133077',
         'exceptionalErrors' => 4096,
         'features' => [
+            'felogin.extbase' => true,
+            'fluidBasedPageModule' => true,
+            'rearrangedRedirectMiddlewares' => true,
             'unifiedPageTranslationHandling' => true,
         ],
-        'sitename' => 'New TYPO3 site',
-        'systemLogLevel' => 2,
+        'sitename' => 'Typo3 10',
         'systemMaintainers' => [
             1,
         ],

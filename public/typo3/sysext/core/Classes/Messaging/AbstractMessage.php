@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Messaging;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,6 +14,8 @@ namespace TYPO3\CMS\Core\Messaging;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Messaging;
 
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -92,7 +94,7 @@ abstract class AbstractMessage implements \JsonSerializable
     /**
      * Gets the message' severity.
      *
-     * @return int The message' severity, must be one of AbstractMessage::INFO or similar contstants
+     * @return int The message' severity, must be one of AbstractMessage::INFO or similar constants
      */
     public function getSeverity(): int
     {

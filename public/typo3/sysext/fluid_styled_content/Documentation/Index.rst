@@ -23,7 +23,7 @@ Content Elements based on Fluid
       frontend, content, fluid
 
 :Copyright:
-      2015-2019
+      2015-2020
 
 :Author:
       TYPO3 CMS Core Development Team
@@ -47,7 +47,6 @@ a GNU/GPL CMS/Framework available from http://typo3.org
 
 .. toctree::
    :maxdepth: 5
-   :titlesonly:
    :glob:
 
    Introduction/Index

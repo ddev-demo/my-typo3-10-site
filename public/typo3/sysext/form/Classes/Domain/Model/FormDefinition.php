@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Model;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,9 +15,16 @@ namespace TYPO3\CMS\Form\Domain\Model;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model;
+
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Extbase\Mvc\Web\Request;
 use TYPO3\CMS\Extbase\Mvc\Web\Response;
+use TYPO3\CMS\Extbase\Object\ObjectManagerInterface;
 use TYPO3\CMS\Extbase\Reflection\ObjectAccess;
 use TYPO3\CMS\Form\Domain\Exception\IdentifierNotValidException;
 use TYPO3\CMS\Form\Domain\Exception\TypeDefinitionNotFoundException;
@@ -289,7 +294,7 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
      * @param \TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager
      * @internal
      */
-    public function injectObjectManager(\TYPO3\CMS\Extbase\Object\ObjectManagerInterface $objectManager)
+    public function injectObjectManager(ObjectManagerInterface $objectManager)
     {
         $this->objectManager = $objectManager;
     }
@@ -552,6 +557,16 @@ class FormDefinition extends AbstractCompositeRenderable implements VariableRend
         if ($renderable instanceof FormElementInterface) {
             unset($this->elementsByIdentifier[$renderable->getIdentifier()]);
         }
+    }
+
+    /**
+     * Get all form elements with their identifiers as keys
+     *
+     * @return FormElementInterface[]
+     */
+    public function getElements(): array
+    {
+        return $this->elementsByIdentifier;
     }
 
     /**

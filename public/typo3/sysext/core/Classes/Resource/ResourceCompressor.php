@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Resource;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Resource;
 
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -160,7 +161,7 @@ class ResourceCompressor
         $filesToInclude = [];
         foreach ($jsFiles as $key => $fileOptions) {
             // invalid section found or no concatenation allowed, so continue
-            if (empty($fileOptions['section']) || !empty($fileOptions['excludeFromConcatenation'])) {
+            if (empty($fileOptions['section']) || !empty($fileOptions['excludeFromConcatenation']) || !empty($fileOptions['nomodule']) || !empty($fileOptions['defer'])) {
                 continue;
             }
             if (!isset($filesToInclude[$fileOptions['section']])) {
@@ -238,7 +239,7 @@ class ResourceCompressor
         if (empty($type)) {
             throw new \InvalidArgumentException('No valid file type given for files to be merged.', 1308957498);
         }
-        // we add up the filenames, filemtimes and filsizes to later build a checksum over
+        // we add up the filenames, filemtimes and filesizes to later build a checksum over
         // it and include it in the temporary file name
         $unique = '';
         foreach ($filesToInclude as $key => $filename) {
@@ -432,11 +433,12 @@ class ResourceCompressor
 
         // if the file is an absolute reference within the docRoot
         $absolutePath = $docRoot . '/' . $fileNameWithoutSlash;
-        // if it is already an absolute path to the file
-        if (PathUtility::isAbsolutePath($filename)) {
+        // If the $filename stems from a call to PathUtility::getAbsoluteWebPath() it has a leading slash,
+        // hence isAbsolutePath() results in true, which is obviously wrong. Check file existence to be sure.
+        // Calling is_file without @ for a path starting with '../' causes a PHP Warning when using open_basedir restriction
+        if (PathUtility::isAbsolutePath($filename) && @is_file($filename)) {
             $absolutePath = $filename;
         }
-        // Calling is_file without @ for a path starting with '../' causes a PHP Warning when using open_basedir restriction
         if (@is_file($absolutePath)) {
             if (strpos($absolutePath, $this->rootPath) === 0) {
                 // the path is within the current root path, simply strip rootPath off
@@ -640,7 +642,7 @@ class ResourceCompressor
         $filename = $this->targetDirectory . 'external-' . md5($url);
         // Write only if file does not exist OR md5 of the content is not the same as fetched one
         if (!file_exists(Environment::getPublicPath() . '/' . $filename)
-            || (md5($externalContent) !== md5(file_get_contents(Environment::getPublicPath() . '/' . $filename)))
+            || !hash_equals(md5(file_get_contents(Environment::getPublicPath() . '/' . $filename)), md5($externalContent))
         ) {
             GeneralUtility::writeFile(Environment::getPublicPath() . '/' . $filename, $externalContent);
         }
@@ -671,7 +673,7 @@ class ResourceCompressor
         // Remove certain whitespace.
         // There are different conditions for removing leading and trailing
         // whitespace.
-        // @see http://php.net/manual/regexp.reference.subpatterns.php
+        // @see https://php.net/manual/regexp.reference.subpatterns.php
         $contents = preg_replace(
             '<
 				# Strip leading and trailing whitespace.

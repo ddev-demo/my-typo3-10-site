@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Model\FormElements;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -17,12 +15,18 @@ namespace TYPO3\CMS\Form\Domain\Model\FormElements;
  * The TYPO3 project - inspiring people to share!
  */
 
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\Domain\Model\FormElements;
+
 /**
  * A date picker form element
  *
  * Scope: frontend
  */
-class DatePicker extends AbstractFormElement
+class DatePicker extends AbstractFormElement implements StringableFormElementInterface
 {
 
     /**
@@ -31,7 +35,25 @@ class DatePicker extends AbstractFormElement
      */
     public function initializeFormElement()
     {
-        $this->setDataType('DateTime');
+        $this->setDataType(\DateTime::class);
         parent::initializeFormElement();
+    }
+
+    /**
+     * @param \DateTime $value
+     */
+    public function valueToString($value): string
+    {
+        $dateFormat = \DateTime::W3C;
+
+        if (isset($this->properties['dateFormat'])) {
+            $dateFormat = $this->properties['dateFormat'];
+
+            if ($this->properties['displayTimeSelector'] ?? false) {
+                $dateFormat .= ' H:i';
+            }
+        }
+
+        return $value->format($dateFormat);
     }
 }

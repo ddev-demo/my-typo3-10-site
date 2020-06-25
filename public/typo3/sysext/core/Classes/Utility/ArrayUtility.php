@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Utility;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Utility;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Utility;
 
 use TYPO3\CMS\Core\Utility\Exception\MissingArrayPathException;
 
@@ -192,7 +193,7 @@ class ArrayUtility
         // Loop through each part and extract its value
         $value = $array;
         foreach ($path as $segment) {
-            if (array_key_exists($segment, $value)) {
+            if (is_array($value) && array_key_exists($segment, $value)) {
                 // Replace current value with child
                 $value = $value[$segment];
             } else {
@@ -262,7 +263,7 @@ class ArrayUtility
      * );
      *
      * @param array $array Input array to manipulate
-     * @param string|array $path Path in array to search for
+     * @param string|array|\ArrayAccess $path Path in array to search for
      * @param mixed $value Value to set at path location in array
      * @param string $delimiter Path delimiter
      * @return array Modified array
@@ -396,7 +397,7 @@ class ArrayUtility
      */
     public static function arrayExport(array $array = [], $level = 0)
     {
-        $lines = '[' . LF;
+        $lines = "[\n";
         $level++;
         $writeKeyIndex = false;
         $expectedKeyIndex = 0;
@@ -420,25 +421,25 @@ class ArrayUtility
                 if (!empty($value)) {
                     $lines .= self::arrayExport($value, $level);
                 } else {
-                    $lines .= '[],' . LF;
+                    $lines .= "[],\n";
                 }
             } elseif (is_int($value) || is_float($value)) {
-                $lines .= $value . ',' . LF;
+                $lines .= $value . ",\n";
             } elseif ($value === null) {
-                $lines .= 'null,' . LF;
+                $lines .= "null,\n";
             } elseif (is_bool($value)) {
                 $lines .= $value ? 'true' : 'false';
-                $lines .= ',' . LF;
+                $lines .= ",\n";
             } elseif (is_string($value)) {
                 // Quote \ to \\
                 // Quote ' to \'
                 $stringContent = str_replace(['\\', '\''], ['\\\\', '\\\''], $value);
-                $lines .= '\'' . $stringContent . '\',' . LF;
+                $lines .= '\'' . $stringContent . "',\n";
             } else {
                 throw new \RuntimeException('Objects are not supported', 1342294987);
             }
         }
-        $lines .= str_repeat('    ', $level - 1) . ']' . ($level - 1 == 0 ? '' : ',' . LF);
+        $lines .= str_repeat('    ', $level - 1) . ']' . ($level - 1 == 0 ? '' : ",\n");
         return $lines;
     }
 
@@ -473,6 +474,7 @@ class ArrayUtility
      *
      * @param array $array The (relative) array to be converted
      * @param string $prefix The (relative) prefix to be used (e.g. 'section.')
+     * @param bool $keepDots
      * @return array
      */
     public static function flatten(array $array, $prefix = '', bool $keepDots = false)

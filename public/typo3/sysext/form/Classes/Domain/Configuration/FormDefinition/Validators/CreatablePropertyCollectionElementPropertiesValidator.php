@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\Domain\Configuration\FormDefinition\Validators;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,9 @@ namespace TYPO3\CMS\Form\Domain\Configuration\FormDefinition\Validators;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Form\Domain\Configuration\FormDefinition\Validators;
+
+use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Form\Domain\Configuration\Exception\PropertyException;
 
 /**
@@ -25,7 +28,7 @@ class CreatablePropertyCollectionElementPropertiesValidator extends CollectionBa
 
     /**
      * Checks if the property collection element property is defined
-     * within the form editor setup or if the property is definied within
+     * within the form editor setup or if the property is defined within
      * the "predefinedDefaults" in the form editor setup
      * and the property value matches the predefined value
      * or if there is a valid hmac hash for the value.
@@ -38,7 +41,10 @@ class CreatablePropertyCollectionElementPropertiesValidator extends CollectionBa
         $dto = $this->validationDto->withPropertyPath($key);
 
         if (!$this->getConfigurationService()->isPropertyCollectionPropertyDefinedInFormEditorSetup($dto)) {
-            if ($this->getConfigurationService()->isPropertyCollectionPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)) {
+            if (
+                $this->getConfigurationService()->isPropertyCollectionPropertyDefinedInPredefinedDefaultsInFormEditorSetup($dto)
+                && !ArrayUtility::isValidPath($this->currentElement, $this->buildHmacDataPath($dto->getPropertyPath()), '.')
+            ) {
                 $this->validatePropertyCollectionElementPredefinedDefaultValue($value, $dto);
             } else {
                 $this->validatePropertyCollectionElementPropertyValueByHmacData(
@@ -63,21 +69,43 @@ class CreatablePropertyCollectionElementPropertiesValidator extends CollectionBa
         $value,
         ValidationDto $dto
     ): void {
+        // If the property collection element is newly created, we have to compare the $value (form definition) with $predefinedDefaultValue (form setup)
+        // to check the integrity (at this time we don't have a hmac on the value to check the integrity)
         $predefinedDefaultValue = $this->getConfigurationService()->getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup($dto);
         if ($value !== $predefinedDefaultValue) {
-            $message = 'The value "%s" of property "%s" (form element "%s" / "%s.%s") is not equal to the default value "%s" #1528591502';
-            throw new PropertyException(
-                sprintf(
-                    $message,
-                    $value,
-                    $dto->getPropertyPath(),
-                    $dto->getFormElementIdentifier(),
-                    $dto->getPropertyCollectionName(),
-                    $dto->getPropertyCollectionElementIdentifier(),
-                    $predefinedDefaultValue
-                ),
-                1528591502
-            );
+            $throwException = true;
+
+            if (is_string($predefinedDefaultValue)) {
+                // Last chance:
+                // Get all translations (from all backend languages) for the untranslated! $predefinedDefaultValue and
+                // compare the (already translated) $value (from the form definition) against the possible
+                // translations from $predefinedDefaultValue.
+                $untranslatedPredefinedDefaultValue = $this->getConfigurationService()->getPropertyCollectionPredefinedDefaultValueFromFormEditorSetup($dto, false);
+                $translations = $this->getConfigurationService()->getAllBackendTranslationsForTranslationKey(
+                    $untranslatedPredefinedDefaultValue,
+                    $dto->getPrototypeName()
+                );
+
+                if (in_array($value, $translations, true)) {
+                    $throwException = false;
+                }
+            }
+
+            if ($throwException) {
+                $message = 'The value "%s" of property "%s" (form element "%s" / "%s.%s") is not equal to the default value "%s" #1528591502';
+                throw new PropertyException(
+                    sprintf(
+                        $message,
+                        $value,
+                        $dto->getPropertyPath(),
+                        $dto->getFormElementIdentifier(),
+                        $dto->getPropertyCollectionName(),
+                        $dto->getPropertyCollectionElementIdentifier(),
+                        $predefinedDefaultValue
+                    ),
+                    1528591502
+                );
+            }
         }
     }
 }

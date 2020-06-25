@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject\Menu;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject\Menu;
 
 use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\Context\Context;
@@ -30,6 +31,7 @@ use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
+use TYPO3\CMS\Frontend\ContentObject\Menu\Exception\NoSuchMenuTypeException;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 use TYPO3\CMS\Frontend\Typolink\PageLinkBuilder;
 
@@ -61,7 +63,7 @@ abstract class AbstractMenuContentObject
      *
      * @var int[]
      */
-    protected $excludedDoktypes = [PageRepository::DOKTYPE_BE_USER_SECTION];
+    protected $excludedDoktypes = [PageRepository::DOKTYPE_BE_USER_SECTION, PageRepository::DOKTYPE_SYSFOLDER];
 
     /**
      * @var int[]
@@ -239,6 +241,12 @@ abstract class AbstractMenuContentObject
                 }
                 $this->alwaysActivePIDlist = GeneralUtility::intExplode(',', $this->conf['alwaysActivePIDlist']);
             }
+            // includeNotInMenu initialized:
+            $includeNotInMenu = $this->conf['includeNotInMenu'];
+            $includeNotInMenuConf = $this->conf['includeNotInMenu.'] ?? null;
+            $this->conf['includeNotInMenu'] = is_array($includeNotInMenuConf)
+                ? $this->parent_cObj->stdWrap($includeNotInMenu, $includeNotInMenuConf)
+                : $includeNotInMenu;
             // exclude doktypes that should not be shown in menu (e.g. backend user section)
             if ($this->conf['excludeDoktypes']) {
                 $this->excludedDoktypes = GeneralUtility::intExplode(',', $this->conf['excludeDoktypes']);
@@ -382,7 +390,7 @@ abstract class AbstractMenuContentObject
         $c_b = 0;
         $minItems = (int)($this->mconf['minItems'] ?: $this->conf['minItems']);
         $maxItems = (int)($this->mconf['maxItems'] ?: $this->conf['maxItems']);
-        $begin = $this->parent_cObj->calc($this->mconf['begin'] ? $this->mconf['begin'] : $this->conf['begin']);
+        $begin = $this->parent_cObj->calc($this->mconf['begin'] ?: $this->conf['begin']);
         $minItemsConf = $this->mconf['minItems.'] ?? $this->conf['minItems.'] ?? null;
         $minItems = is_array($minItemsConf) ? $this->parent_cObj->stdWrap($minItems, $minItemsConf) : $minItems;
         $maxItemsConf = $this->mconf['maxItems.'] ?? $this->conf['maxItems.'] ?? null;
@@ -399,7 +407,7 @@ abstract class AbstractMenuContentObject
                 $c_b++;
                 // If the beginning item has been reached.
                 if ($begin <= $c_b) {
-                    $this->menuArr[$c] = $data;
+                    $this->menuArr[$c] = $this->determineOriginalShortcutPage($data);
                     $this->menuArr[$c]['isSpacer'] = $isSpacerPage;
                     $c++;
                     if ($maxItems && $c >= $maxItems) {
@@ -501,6 +509,7 @@ abstract class AbstractMenuContentObject
         if (isset($this->mconf['additionalWhere.'])) {
             $additionalWhere = $this->parent_cObj->stdWrap($additionalWhere, $this->mconf['additionalWhere.']);
         }
+        $additionalWhere .= $this->getDoktypeExcludeWhere();
 
         // ... only for the FIRST level of a HMENU
         if ($this->menuNumber == 1 && $this->conf['special']) {
@@ -668,7 +677,7 @@ abstract class AbstractMenuContentObject
                 if ($mount_info['overlay']) {
                     // Overlays should already have their full MPvars calculated:
                     $MP = $pageLinkBuilder->getMountPointParameterFromRootPointMaps((int)$mount_info['mount_pid']);
-                    $MP = $MP ? $MP : $mount_info['MPvar'];
+                    $MP = $MP ?: $mount_info['MPvar'];
                 } else {
                     $MP = ($MP ? $MP . ',' : '') . $mount_info['MPvar'];
                 }
@@ -677,6 +686,14 @@ abstract class AbstractMenuContentObject
             // Get sub-pages:
             $statement = $this->parent_cObj->exec_getQuery('pages', ['pidInList' => $id, 'orderBy' => $sortingField]);
             while ($row = $statement->fetch()) {
+                // When the site language configuration is in "free" mode, then the page without overlay is fetched
+                // (which is kind-of strange for pages, but this is what exec_getQuery() is doing)
+                // this means, that $row is a translated page, but hasn't been overlaid. For this reason, we fetch
+                // the default translation page again, (which does a ->getPageOverlay() again - doing this on a
+                // translated page would result in no record at all)
+                if ($row['l10n_parent'] > 0 && !isset($row['_PAGES_OVERLAY'])) {
+                    $row = $this->sys_page->getPage($row['l10n_parent'], true);
+                }
                 $tsfe->sys_page->versionOL('pages', $row, true);
                 if (!empty($row)) {
                     // Keep mount point?
@@ -700,7 +717,7 @@ abstract class AbstractMenuContentObject
                         if ($MP) {
                             $row['_MP_PARAM'] = $MP . ($row['_MP_PARAM'] ? ',' . $row['_MP_PARAM'] : '');
                         }
-                        $menuItems[$row['uid']] = $this->sys_page->getPageOverlay($row);
+                        $menuItems[] = $this->sys_page->getPageOverlay($row);
                     }
                 }
             }
@@ -847,6 +864,14 @@ abstract class AbstractMenuContentObject
             'max' => $limit
         ]);
         while ($row = $statement->fetch()) {
+            // When the site language configuration is in "free" mode, then the page without overlay is fetched
+            // (which is kind-of strange for pages, but this is what exec_getQuery() is doing)
+            // this means, that $row is a translated page, but hasn't been overlaid. For this reason, we fetch
+            // the default translation page again, (which does a ->getPageOverlay() again - doing this on a
+            // translated page would result in no record at all)
+            if ($row['l10n_parent'] > 0 && !isset($row['_PAGES_OVERLAY'])) {
+                $row = $this->sys_page->getPage($row['l10n_parent'], true);
+            }
             $tsfe->sys_page->versionOL('pages', $row, true);
             if (is_array($row)) {
                 $menuItems[$row['uid']] = $this->sys_page->getPageOverlay($row);
@@ -867,7 +892,7 @@ abstract class AbstractMenuContentObject
     {
         $tsfe = $this->getTypoScriptFrontendController();
         $menuItems = [];
-        list($specialValue) = GeneralUtility::intExplode(',', $specialValue);
+        [$specialValue] = GeneralUtility::intExplode(',', $specialValue);
         if (!$specialValue) {
             $specialValue = $tsfe->page['uid'];
         }
@@ -876,7 +901,7 @@ abstract class AbstractMenuContentObject
         } else {
             // The page record of the 'value'.
             $value_rec = $this->sys_page->getPage($specialValue);
-            $kfieldSrc = $this->conf['special.']['keywordsField.']['sourceField'] ? $this->conf['special.']['keywordsField.']['sourceField'] : 'keywords';
+            $kfieldSrc = $this->conf['special.']['keywordsField.']['sourceField'] ?: 'keywords';
             // keywords.
             $kw = trim($this->parent_cObj->keywords($value_rec[$kfieldSrc]));
         }
@@ -918,7 +943,7 @@ abstract class AbstractMenuContentObject
         // Which field is for keywords
         $kfield = 'keywords';
         if ($this->conf['special.']['keywordsField']) {
-            list($kfield) = explode(' ', trim($this->conf['special.']['keywordsField']));
+            [$kfield] = explode(' ', trim($this->conf['special.']['keywordsField']));
         }
         // If there are keywords and the startuid is present
         if ($kw && $startUid) {
@@ -1057,7 +1082,7 @@ abstract class AbstractMenuContentObject
     protected function prepareMenuItemsForBrowseMenu($specialValue, $sortingField, $additionalWhere)
     {
         $menuItems = [];
-        list($specialValue) = GeneralUtility::intExplode(',', $specialValue);
+        [$specialValue] = GeneralUtility::intExplode(',', $specialValue);
         if (!$specialValue) {
             $specialValue = $this->getTypoScriptFrontendController()->page['uid'];
         }
@@ -1340,7 +1365,7 @@ abstract class AbstractMenuContentObject
         // Override url if current page is a shortcut
         $shortcut = null;
         if ((int)$this->menuArr[$key]['doktype'] === PageRepository::DOKTYPE_SHORTCUT && (int)$this->menuArr[$key]['shortcut_mode'] !== PageRepository::SHORTCUT_MODE_RANDOM_SUBPAGE) {
-            $menuItem = $this->determineOriginalShortcutPage($this->menuArr[$key]);
+            $menuItem = $this->menuArr[$key];
             try {
                 $shortcut = $tsfe->sys_page->getPageShortcut(
                     $menuItem['shortcut'],
@@ -1407,10 +1432,11 @@ abstract class AbstractMenuContentObject
             }
             // Open in popup window?
             if ($matches[3] && $matches[4]) {
+                $target = $LD['target'] ?? 'FEopenLink';
                 $JSparamWH = 'width=' . $matches[3] . ',height=' . $matches[4] . ($matches[5] ? ',' . substr($matches[5], 1) : '');
                 $onClick = 'vHWin=window.open('
                     . GeneralUtility::quoteJSvalue($tsfe->baseUrlWrap($LD['totalURL']))
-                    . ',\'FEopenLink\',' . GeneralUtility::quoteJSvalue($JSparamWH) . ');vHWin.focus();return false;';
+                    . ',' . GeneralUtility::quoteJSvalue($target) . ',' . GeneralUtility::quoteJSvalue($JSparamWH) . ');vHWin.focus();return false;';
                 $LD['target'] = '';
             }
         }
@@ -1535,7 +1561,7 @@ abstract class AbstractMenuContentObject
                     $tsfe->register['count_menuItems'] = count($this->menuArr);
                     return $content;
                 }
-            } catch (Exception\NoSuchMenuTypeException $e) {
+            } catch (NoSuchMenuTypeException $e) {
             }
         }
         return '';
@@ -2020,7 +2046,7 @@ abstract class AbstractMenuContentObject
     }
 
     /**
-     * Set the parentMenuArr and key to provide the parentMenu informations to the
+     * Set the parentMenuArr and key to provide the parentMenu information to the
      * subMenu, special fur IProcFunc and itemArrayProcFunc user functions.
      *
      * @param array $menuArr
@@ -2039,7 +2065,7 @@ abstract class AbstractMenuContentObject
     }
 
     /**
-     * Check if there is an valid parentMenuArr.
+     * Check if there is a valid parentMenuArr.
      *
      * @return bool
      */
@@ -2053,7 +2079,7 @@ abstract class AbstractMenuContentObject
     }
 
     /**
-     * Check if we have an parentMenutArrItemKey
+     * Check if we have a parentMenuArrItemKey
      */
     protected function hasParentMenuItemKey()
     {
@@ -2089,7 +2115,7 @@ abstract class AbstractMenuContentObject
      */
     public function getParentMenuItem()
     {
-        // check if we have an parentMenuItem and if it is an array
+        // check if we have a parentMenuItem and if it is an array
         if ($this->hasParentMenuItem()
             && is_array($this->getParentMenuArr()[$this->parentMenuArrItemKey])
         ) {

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Form\NodeExpansion;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,8 @@ namespace TYPO3\CMS\Backend\Form\NodeExpansion;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Form\NodeExpansion;
+
 use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -28,7 +30,7 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  * new ajax controllers for instance or add buttons and are not restricted by the
  * framework further.
  *
- * Examples for field wizards are the display of the "languaged diff" in input elements
+ * Examples for field wizards are the display of the "language diff" in input elements
  * and the file upload button in group elements.
  */
 class FieldWizard extends AbstractNode

@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extensionmanager\Utility\Parser;
 
 /**
  * Abstract parser for TYPO3's extension.xml file.
@@ -140,14 +141,21 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     protected $versionDownloadCounter;
 
     /**
-     * Returns an assoziative array of all extension version properties.
+     * Link to the documentation
+     *
+     * @var string
+     */
+    protected $documentationLink;
+
+    /**
+     * Returns an associative array of all extension version properties.
      *
      * Valid array keys of returned array are:
      * extkey, version, alldownloadcounter, downloadcounter, title, description,
      * state, reviewstate, category, lastuploaddate, uploadcomment, dependencies,
      * authorname, authoremail, authorcompany, ownerusername, t3xfilemd5
      *
-     * @return array assoziative array of an extension version's properties
+     * @return array associative array of an extension version's properties
      */
     public function getAll()
     {
@@ -169,6 +177,7 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
         $versionProperties['authorcompany'] = $this->authorcompany;
         $versionProperties['ownerusername'] = $this->ownerusername;
         $versionProperties['t3xfilemd5'] = $this->t3xfilemd5;
+        $versionProperties['documentationlink'] = $this->documentationLink;
         return $versionProperties;
     }
 
@@ -360,6 +369,14 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
     }
 
     /**
+     * @return string
+     */
+    public function getDocumentationLink()
+    {
+        return $this->documentationLink;
+    }
+
+    /**
      * Method resets version class properties.
      *
      * @param bool $resetAll If TRUE, additionally extension properties are reset
@@ -369,7 +386,7 @@ abstract class AbstractExtensionXmlParser extends AbstractXmlParser
         // resetting at least class property "version" is mandatory
         // as we need to do some magic in regards to
         // an extension's and version's child node "downloadcounter"
-        $this->version = $this->title = $this->versionDownloadCounter = $this->description = $this->state = $this->reviewstate = $this->category = $this->lastuploaddate = $this->uploadcomment = $this->dependencies = $this->authorname = $this->authoremail = $this->authorcompany = $this->ownerusername = $this->t3xfilemd5 = null;
+        $this->version = $this->title = $this->versionDownloadCounter = $this->description = $this->state = $this->reviewstate = $this->category = $this->lastuploaddate = $this->uploadcomment = $this->dependencies = $this->authorname = $this->authoremail = $this->authorcompany = $this->ownerusername = $this->t3xfilemd5 = $this->documentationLink = null;
         if ($resetAll) {
             $this->extensionKey = $this->extensionDownloadCounter = null;
         }

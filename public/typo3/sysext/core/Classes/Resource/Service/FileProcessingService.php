@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource\Service;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,10 +13,23 @@ namespace TYPO3\CMS\Core\Resource\Service;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource\Service;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Core\Resource;
+use TYPO3\CMS\Core\Resource\Driver\DriverInterface;
+use TYPO3\CMS\Core\Resource\Event\AfterFileProcessingEvent;
+use TYPO3\CMS\Core\Resource\Event\BeforeFileProcessingEvent;
+use TYPO3\CMS\Core\Resource\FileInterface;
+use TYPO3\CMS\Core\Resource\ProcessedFile;
+use TYPO3\CMS\Core\Resource\ProcessedFileRepository;
+use TYPO3\CMS\Core\Resource\Processing\LocalPreviewHelper;
+use TYPO3\CMS\Core\Resource\Processing\ProcessorInterface;
+use TYPO3\CMS\Core\Resource\Processing\ProcessorRegistry;
+use TYPO3\CMS\Core\Resource\Processing\TaskInterface;
+use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Object\ObjectManager;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
+use TYPO3\CMS\Core\Utility\MathUtility;
 
 /**
  * File processing service
@@ -35,11 +47,18 @@ class FileProcessingService
     protected $driver;
 
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
 
+    /**
+     * @deprecated since TYPO3 v10.2, will be removed in TYPO3 v11. Use the PSR-14 event instead.
+     */
     const SIGNAL_PreFileProcess = 'preFileProcess';
+
+    /**
+     * @deprecated since TYPO3 v10.2, will be removed in TYPO3 v11. Use the PSR-14 event instead.
+     */
     const SIGNAL_PostFileProcess = 'postFileProcess';
 
     /**
@@ -47,11 +66,13 @@ class FileProcessingService
      *
      * @param Resource\ResourceStorage $storage
      * @param Resource\Driver\DriverInterface $driver
+     * @param EventDispatcherInterface|null $eventDispatcher
      */
-    public function __construct(Resource\ResourceStorage $storage, Resource\Driver\DriverInterface $driver)
+    public function __construct(ResourceStorage $storage, DriverInterface $driver, EventDispatcherInterface $eventDispatcher = null)
     {
         $this->storage = $storage;
         $this->driver = $driver;
+        $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::getContainer()->get(EventDispatcherInterface::class);
     }
 
     /**
@@ -65,23 +86,34 @@ class FileProcessingService
      * @return Resource\ProcessedFile
      * @throws \InvalidArgumentException
      */
-    public function processFile(Resource\FileInterface $fileObject, Resource\ResourceStorage $targetStorage, $taskType, $configuration)
+    public function processFile(FileInterface $fileObject, ResourceStorage $targetStorage, $taskType, $configuration)
     {
         // Enforce default configuration for preview processing here,
         // to be sure we find already processed files below,
         // which we wouldn't if we would change the configuration later, as configuration is part of the lookup.
-        if ($taskType === Resource\ProcessedFile::CONTEXT_IMAGEPREVIEW) {
-            $configuration = Resource\Processing\LocalPreviewHelper::preProcessConfiguration($configuration);
+        if ($taskType === ProcessedFile::CONTEXT_IMAGEPREVIEW) {
+            $configuration = LocalPreviewHelper::preProcessConfiguration($configuration);
+        }
+        // Ensure that the processing configuration which is part of the hash sum is properly cast, so
+        // unnecessary duplicate images are not produced, see #80942
+        foreach ($configuration as &$value) {
+            if (MathUtility::canBeInterpretedAsInteger($value)) {
+                $value = (int)$value;
+            }
         }
 
         /** @var Resource\ProcessedFileRepository $processedFileRepository */
-        $processedFileRepository = GeneralUtility::makeInstance(Resource\ProcessedFileRepository::class);
+        $processedFileRepository = GeneralUtility::makeInstance(ProcessedFileRepository::class);
 
         $processedFile = $processedFileRepository->findOneByOriginalFileAndTaskTypeAndConfiguration($fileObject, $taskType, $configuration);
 
         // set the storage of the processed file
         // Pre-process the file
-        $this->emitPreFileProcessSignal($processedFile, $fileObject, $taskType, $configuration);
+        /** @var Resource\Event\BeforeFileProcessingEvent $event */
+        $event = $this->eventDispatcher->dispatch(
+            new BeforeFileProcessingEvent($this->driver, $processedFile, $fileObject, $taskType, $configuration)
+        );
+        $processedFile = $event->getProcessedFile();
 
         // Only handle the file if it is not processed yet
         // (maybe modified or already processed by a signal)
@@ -91,9 +123,12 @@ class FileProcessingService
         }
 
         // Post-process (enrich) the file
-        $this->emitPostFileProcessSignal($processedFile, $fileObject, $taskType, $configuration);
+        /** @var Resource\Event\AfterFileProcessingEvent $event */
+        $event = $this->eventDispatcher->dispatch(
+            new AfterFileProcessingEvent($this->driver, $processedFile, $fileObject, $taskType, $configuration)
+        );
 
-        return $processedFile;
+        return $event->getProcessedFile();
     }
 
     /**
@@ -102,7 +137,7 @@ class FileProcessingService
      * @param Resource\ProcessedFile $processedFile
      * @param Resource\ResourceStorage $targetStorage The storage to put the processed file into
      */
-    protected function process(Resource\ProcessedFile $processedFile, Resource\ResourceStorage $targetStorage)
+    protected function process(ProcessedFile $processedFile, ResourceStorage $targetStorage)
     {
         // We only have to trigger the file processing if the file either is new, does not exist or the
         // original file has changed since the last processing run (the last case has to trigger a reprocessing
@@ -115,7 +150,7 @@ class FileProcessingService
 
             if ($task->isExecuted() && $task->isSuccessful() && $processedFile->isProcessed()) {
                 /** @var Resource\ProcessedFileRepository $processedFileRepository */
-                $processedFileRepository = GeneralUtility::makeInstance(Resource\ProcessedFileRepository::class);
+                $processedFileRepository = GeneralUtility::makeInstance(ProcessedFileRepository::class);
                 $processedFileRepository->add($processedFile);
             }
         }
@@ -125,57 +160,10 @@ class FileProcessingService
      * @param Resource\Processing\TaskInterface $task
      * @return Resource\Processing\ProcessorInterface
      */
-    protected function getProcessorByTask(Resource\Processing\TaskInterface $task): Resource\Processing\ProcessorInterface
+    protected function getProcessorByTask(TaskInterface $task): ProcessorInterface
     {
-        $processorRegistry = GeneralUtility::makeInstance(Resource\Processing\ProcessorRegistry::class);
+        $processorRegistry = GeneralUtility::makeInstance(ProcessorRegistry::class);
 
         return $processorRegistry->getProcessorByTask($task);
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(ObjectManager::class)->get(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
-    }
-
-    /**
-     * Emits file pre-processing signal.
-     *
-     * @param Resource\ProcessedFile $processedFile
-     * @param Resource\FileInterface $file
-     * @param string $context
-     * @param array $configuration
-     */
-    protected function emitPreFileProcessSignal(Resource\ProcessedFile $processedFile, Resource\FileInterface $file, $context, array $configuration = [])
-    {
-        $this->getSignalSlotDispatcher()->dispatch(
-            Resource\ResourceStorage::class,
-            self::SIGNAL_PreFileProcess,
-            [$this, $this->driver, $processedFile, $file, $context, $configuration]
-        );
-    }
-
-    /**
-     * Emits file post-processing signal.
-     *
-     * @param Resource\ProcessedFile $processedFile
-     * @param Resource\FileInterface $file
-     * @param $context
-     * @param array $configuration
-     */
-    protected function emitPostFileProcessSignal(Resource\ProcessedFile $processedFile, Resource\FileInterface $file, $context, array $configuration = [])
-    {
-        $this->getSignalSlotDispatcher()->dispatch(
-            Resource\ResourceStorage::class,
-            self::SIGNAL_PostFileProcess,
-            [$this, $this->driver, $processedFile, $file, $context, $configuration]
-        );
     }
 }

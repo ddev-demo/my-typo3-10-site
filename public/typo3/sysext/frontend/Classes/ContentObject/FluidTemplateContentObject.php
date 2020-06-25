@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Frontend\ContentObject;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Frontend\ContentObject;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Frontend\ContentObject;
 
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -73,7 +74,7 @@ class FluidTemplateContentObject extends AbstractContentObject
      * 10 = FLUIDTEMPLATE
      * 10.templateName = MyTemplate
      * 10.templateRootPaths.10 = EXT:site_configuration/Resources/Private/Templates/
-     * 10.partialRootPaths.10 = EXT:site_configuration/Resources/Private/Patials/
+     * 10.partialRootPaths.10 = EXT:site_configuration/Resources/Private/Partials/
      * 10.layoutRootPaths.10 = EXT:site_configuration/Resources/Private/Layouts/
      * 10.variables {
      *   mylabel = TEXT
@@ -162,7 +163,7 @@ class FluidTemplateContentObject extends AbstractContentObject
             $this->view->setTemplate($templateName);
         } elseif (!empty($conf['template']) && !empty($conf['template.'])) {
             // Fetch the Fluid template by template cObject
-            $templateSource = $this->cObj->cObjGetSingle($conf['template'], $conf['template.']);
+            $templateSource = $this->cObj->cObjGetSingle($conf['template'], $conf['template.'], 'template');
             if ($templateSource === '') {
                 throw new ContentRenderingException(
                     'Could not find template source for ' . $conf['template'],
@@ -248,7 +249,6 @@ class FluidTemplateContentObject extends AbstractContentObject
      */
     protected function setExtbaseVariables(array $conf)
     {
-        /** @var \TYPO3\CMS\Extbase\Mvc\Request $request */
         $requestPluginName = isset($conf['extbase.']['pluginName.'])
             ? $this->cObj->stdWrap($conf['extbase.']['pluginName'] ?? '', $conf['extbase.']['pluginName.'])
             : ($conf['extbase.']['pluginName'] ?? '');
@@ -319,7 +319,7 @@ class FluidTemplateContentObject extends AbstractContentObject
                 continue;
             }
             if (!in_array($variableName, $reservedVariables)) {
-                $variables[$variableName] = $this->cObj->cObjGetSingle($cObjType, $variablesToProcess[$variableName . '.']);
+                $variables[$variableName] = $this->cObj->cObjGetSingle($cObjType, $variablesToProcess[$variableName . '.'], 'variables.' . $variableName);
             } else {
                 throw new \InvalidArgumentException(
                     'Cannot use reserved name "' . $variableName . '" as variable name in FLUIDTEMPLATE.',

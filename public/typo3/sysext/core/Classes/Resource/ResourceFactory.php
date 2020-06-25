@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,30 +13,41 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Resource\Collection\FileCollectionRegistry;
+use TYPO3\CMS\Core\Resource\Driver\DriverRegistry;
+use TYPO3\CMS\Core\Resource\Event\AfterResourceStorageInitializationEvent;
+use TYPO3\CMS\Core\Resource\Event\BeforeResourceStorageInitializationEvent;
+use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
+use TYPO3\CMS\Core\Resource\Exception\ResourceDoesNotExistException;
 use TYPO3\CMS\Core\Resource\Index\FileIndexRepository;
+use TYPO3\CMS\Core\Resource\Index\Indexer;
 use TYPO3\CMS\Core\Service\FlexFormService;
+use TYPO3\CMS\Core\SingletonInterface;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Factory class for FAL objects
- * @todo implement constructor-level caching
  */
-class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\SingletonInterface
+class ResourceFactory implements ResourceFactoryInterface, SingletonInterface
 {
     /**
      * Gets a singleton instance of this class.
      *
      * @return ResourceFactory
+     * @deprecated use regular DI or - if not possible - GeneralUtility::makeInstance instead, as this Factory does not serve any purpose
      */
     public static function getInstance()
     {
+        trigger_error('ResourceFactory::getInstance() will be removed in TYPO3 v11.0. Use constructor-level Dependency Injection or GeneralUtility::makeInstance(ResourceFactory::class) instead.', E_USER_DEPRECATED);
         return GeneralUtility::makeInstance(__CLASS__);
     }
 
@@ -69,18 +79,16 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
     protected $localDriverStorageCache;
 
     /**
-     * @var Dispatcher
+     * @var EventDispatcherInterface
      */
-    protected $signalSlotDispatcher;
+    protected $eventDispatcher;
 
     /**
-     * Inject signal slot dispatcher
-     *
-     * @param Dispatcher $signalSlotDispatcher an instance of the signal slot dispatcher
+     * @param EventDispatcherInterface $eventDispatcher
      */
-    public function __construct(Dispatcher $signalSlotDispatcher = null)
+    public function __construct(EventDispatcherInterface $eventDispatcher)
     {
-        $this->signalSlotDispatcher = $signalSlotDispatcher ?: GeneralUtility::makeInstance(Dispatcher::class);
+        $this->eventDispatcher = $eventDispatcher;
     }
 
     /**
@@ -94,7 +102,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
     public function getDriverObject($driverIdentificationString, array $driverConfiguration)
     {
         /** @var Driver\DriverRegistry $driverRegistry */
-        $driverRegistry = GeneralUtility::makeInstance(Driver\DriverRegistry::class);
+        $driverRegistry = GeneralUtility::makeInstance(DriverRegistry::class);
         $driverClass = $driverRegistry->getDriverClass($driverIdentificationString);
         $driverObject = GeneralUtility::makeInstance($driverClass, $driverConfiguration);
         return $driverObject;
@@ -146,7 +154,11 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
         if (empty($this->storageInstances[$uid])) {
             $storageConfiguration = null;
             $storageObject = null;
-            list($_, $uid, $recordData, $fileIdentifier) = $this->emitPreProcessStorageSignal($uid, $recordData, $fileIdentifier);
+            /** @var BeforeResourceStorageInitializationEvent $event */
+            $event = $this->eventDispatcher->dispatch(new BeforeResourceStorageInitializationEvent($uid, $recordData, $fileIdentifier));
+            $recordData = $event->getRecord();
+            $uid = $event->getStorageUid();
+            $fileIdentifier = $event->getFileIdentifier();
             // If the built-in storage with UID=0 is requested:
             if ($uid === 0) {
                 $recordData = [
@@ -171,39 +183,18 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
             } elseif (count($recordData) === 0 || (int)$recordData['uid'] !== $uid) {
                 /** @var StorageRepository $storageRepository */
                 $storageRepository = GeneralUtility::makeInstance(StorageRepository::class);
-                /** @var ResourceStorage $storage */
+                /** @var ResourceStorage $storageObject */
                 $storageObject = $storageRepository->findByUid($uid);
             }
             if (!$storageObject instanceof ResourceStorage) {
                 $storageObject = $this->createStorageObject($recordData, $storageConfiguration);
             }
-            $this->emitPostProcessStorageSignal($storageObject);
+            $storageObject = $this->eventDispatcher
+                ->dispatch(new AfterResourceStorageInitializationEvent($storageObject))
+                ->getStorage();
             $this->storageInstances[$uid] = $storageObject;
         }
         return $this->storageInstances[$uid];
-    }
-
-    /**
-     * Emits a signal before a resource storage was initialized
-     *
-     * @param int $uid
-     * @param array $recordData
-     * @param string $fileIdentifier
-     * @return mixed
-     */
-    protected function emitPreProcessStorageSignal($uid, $recordData, $fileIdentifier)
-    {
-        return $this->signalSlotDispatcher->dispatch(\TYPO3\CMS\Core\Resource\ResourceFactory::class, self::SIGNAL_PreProcessStorage, [$this, $uid, $recordData, $fileIdentifier]);
-    }
-
-    /**
-     * Emits a signal after a resource storage was initialized
-     *
-     * @param ResourceStorage $storageObject
-     */
-    protected function emitPostProcessStorageSignal(ResourceStorage $storageObject)
-    {
-        $this->signalSlotDispatcher->dispatch(self::class, self::SIGNAL_PostProcessStorage, [$this, $storageObject]);
     }
 
     /**
@@ -321,7 +312,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
     public function createCollectionObject(array $collectionData)
     {
         /** @var Collection\FileCollectionRegistry $registry */
-        $registry = GeneralUtility::makeInstance(Collection\FileCollectionRegistry::class);
+        $registry = GeneralUtility::makeInstance(FileCollectionRegistry::class);
 
         /** @var \TYPO3\CMS\Core\Collection\AbstractRecordCollection $class */
         $class = $registry->getFileCollectionClass($collectionData['type']);
@@ -343,7 +334,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
         }
         $driverType = $storageRecord['driver'];
         $driverObject = $this->getDriverObject($driverType, $storageConfiguration);
-        return GeneralUtility::makeInstance(ResourceStorage::class, $driverObject, $storageRecord);
+        return GeneralUtility::makeInstance(ResourceStorage::class, $driverObject, $storageRecord, $this->eventDispatcher);
     }
 
     /**
@@ -380,7 +371,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
             if (empty($fileData)) {
                 $fileData = $this->getFileIndexRepository()->findOneByUid($uid);
                 if ($fileData === false) {
-                    throw new Exception\FileDoesNotExistException('No file found for given UID: ' . $uid, 1317178604);
+                    throw new FileDoesNotExistException('No file found for given UID: ' . $uid, 1317178604);
                 }
             }
             $this->fileInstances[$uid] = $this->createFileObject($fileData);
@@ -389,7 +380,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
     }
 
     /**
-     * Gets an file object from an identifier [storage]:[fileId]
+     * Gets a file object from an identifier [storage]:[fileId]
      *
      * @param string $identifier
      * @return File|ProcessedFile|null
@@ -397,7 +388,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
      */
     public function getFileObjectFromCombinedIdentifier($identifier)
     {
-        if (!isset($identifier) || !is_string($identifier) || $identifier === '') {
+        if (!is_string($identifier) || $identifier === '') {
             throw new \InvalidArgumentException('Invalid file identifier given. It must be of type string and not empty. "' . gettype($identifier) . '" given.', 1401732564);
         }
         $parts = GeneralUtility::trimExplode(':', $identifier);
@@ -417,9 +408,9 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
     }
 
     /**
-     * Gets an file object from storage by file identifier
-     * If the file is outside of the process folder it gets indexed and returned as file object afterwards
-     * If the file is within processing folder the file object will be directly returned
+     * Gets a file object from storage by file identifier
+     * If the file is outside of the process folder, it gets indexed and returned as file object afterwards
+     * If the file is within processing folder, the file object will be directly returned
      *
      * @param int $storageUid
      * @param string $fileIdentifier
@@ -476,7 +467,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
             return $this->getFileObject($input);
         }
         if (strpos($input, ':') > 0) {
-            list($prefix) = explode(':', $input);
+            [$prefix] = explode(':', $input);
             if (MathUtility::canBeInterpretedAsInteger($prefix)) {
                 // path or folder in a valid storageUID
                 return $this->getObjectFromCombinedIdentifier($input);
@@ -555,7 +546,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
      */
     public function getObjectFromCombinedIdentifier($identifier)
     {
-        list($storageId, $objectIdentifier) = GeneralUtility::trimExplode(':', $identifier);
+        [$storageId, $objectIdentifier] = GeneralUtility::trimExplode(':', $identifier);
         $storage = $this->getStorageObject($storageId);
         if ($storage->hasFile($objectIdentifier)) {
             return $storage->getFile($objectIdentifier);
@@ -563,7 +554,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
         if ($storage->hasFolder($objectIdentifier)) {
             return $storage->getFolder($objectIdentifier);
         }
-        throw new Exception\ResourceDoesNotExistException('Object with identifier "' . $identifier . '" does not exist in storage', 1329647780);
+        throw new ResourceDoesNotExistException('Object with identifier "' . $identifier . '" does not exist in storage', 1329647780);
     }
 
     /**
@@ -576,7 +567,6 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
      */
     public function createFileObject(array $fileData, ResourceStorage $storage = null)
     {
-        /** @var File $fileObject */
         if (array_key_exists('storage', $fileData) && MathUtility::canBeInterpretedAsInteger($fileData['storage'])) {
             $storageObject = $this->getStorageObject((int)$fileData['storage']);
         } elseif ($storage !== null) {
@@ -585,6 +575,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
         } else {
             throw new \RuntimeException('A file needs to reside in a Storage', 1381570997);
         }
+        /** @var File $fileObject */
         $fileObject = GeneralUtility::makeInstance(File::class, $fileData, $storageObject);
         return $fileObject;
     }
@@ -613,7 +604,7 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
             if (empty($fileReferenceData)) {
                 $fileReferenceData = $this->getFileReferenceData($uid, $raw);
                 if (!is_array($fileReferenceData)) {
-                    throw new Exception\ResourceDoesNotExistException(
+                    throw new ResourceDoesNotExistException(
                         'No file reference (sys_file_reference) was found for given UID: "' . $uid . '"',
                         1317178794
                     );
@@ -697,6 +688,6 @@ class ResourceFactory implements ResourceFactoryInterface, \TYPO3\CMS\Core\Singl
      */
     protected function getIndexer(ResourceStorage $storage)
     {
-        return GeneralUtility::makeInstance(Index\Indexer::class, $storage);
+        return GeneralUtility::makeInstance(Indexer::class, $storage);
     }
 }

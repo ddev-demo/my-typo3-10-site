@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,9 +15,13 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
+use ArrayObject;
 use Psr\Container\ContainerInterface;
 use TYPO3\CMS\Core\Cache\Frontend\PhpFrontend as PhpFrontendCache;
 use TYPO3\CMS\Core\Core\Environment;
+use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
 
 /**
@@ -87,9 +91,9 @@ class MiddlewareStackResolver
     /**
      * Lazy load configuration from the container
      *
-     * @return array
+     * @return ArrayObject
      */
-    protected function loadConfiguration(): array
+    protected function loadConfiguration(): ArrayObject
     {
         return $this->container->get('middlewares');
     }
@@ -97,10 +101,10 @@ class MiddlewareStackResolver
     /**
      * Order each stack and sanitize to a plain array
      *
-     * @param array
+     * @param ArrayObject $allMiddlewares
      * @return array
      */
-    protected function sanitizeMiddlewares(array $allMiddlewares): array
+    protected function sanitizeMiddlewares(ArrayObject $allMiddlewares): array
     {
         $middlewares = [];
 
@@ -129,6 +133,6 @@ class MiddlewareStackResolver
      */
     protected function getCacheIdentifier(string $stackName): string
     {
-        return 'middlewares_' . $stackName . '_' . sha1(TYPO3_version . Environment::getProjectPath());
+        return 'middlewares_' . $stackName . '_' . sha1((string)(new Typo3Version()) . Environment::getProjectPath());
     }
 }

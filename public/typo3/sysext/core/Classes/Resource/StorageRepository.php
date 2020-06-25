@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Resource;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -14,12 +13,15 @@ namespace TYPO3\CMS\Core\Resource;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Resource;
+
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Configuration\FlexForm\FlexFormTools;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
+use TYPO3\CMS\Core\Resource\Driver\DriverRegistry;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -134,7 +136,7 @@ class StorageRepository extends AbstractRepository implements LoggerAwareInterfa
         $this->initializeLocalCache();
 
         /** @var Driver\DriverRegistry $driverRegistry */
-        $driverRegistry = GeneralUtility::makeInstance(Driver\DriverRegistry::class);
+        $driverRegistry = GeneralUtility::makeInstance(DriverRegistry::class);
 
         $storageObjects = [];
         foreach ($this->storageRowCache as $storageRow) {
@@ -164,7 +166,7 @@ class StorageRepository extends AbstractRepository implements LoggerAwareInterfa
         $this->initializeLocalCache();
 
         /** @var Driver\DriverRegistry $driverRegistry */
-        $driverRegistry = GeneralUtility::makeInstance(Driver\DriverRegistry::class);
+        $driverRegistry = GeneralUtility::makeInstance(DriverRegistry::class);
 
         $storageObjects = [];
         foreach ($this->storageRowCache as $storageRow) {

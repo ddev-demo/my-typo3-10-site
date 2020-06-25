@@ -1,4 +1,5 @@
 <?php
+
 $EM_CONF[$_EXTKEY] = [
     'title' => 'Backend User Administration',
     'description' => 'Backend user administration and overview. Allows you to compare the settings of users and verify their permissions and see who is online.',
@@ -8,10 +9,10 @@ $EM_CONF[$_EXTKEY] = [
     'author_company' => '',
     'state' => 'stable',
     'clearCacheOnLoad' => 0,
-    'version' => '10.1.0',
+    'version' => '10.4.4',
     'constraints' => [
         'depends' => [
-            'typo3' => '10.1.0',
+            'typo3' => '10.4.4',
         ],
         'conflicts' => [],
         'suggests' => [],

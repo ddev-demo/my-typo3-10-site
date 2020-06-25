@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 use TYPO3\CMS\Backend\Form\Utility\FormEngineUtility;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
@@ -78,8 +79,14 @@ class SelectCheckBoxElement extends AbstractFormElement
 
         $selItems = $config['items'];
         if (!empty($selItems)) {
-            // Get values in an array (and make unique, which is fine because there can be no duplicates anyway):
-            $itemArray = array_flip($parameterArray['itemFormElValue']);
+            // Get values in an array (and make unique, which is fine because there can be no duplicates anyway)
+            // In case e.g. "l10n_display" is set to "defaultAsReadonly" only one value (as string) could be handed in
+            if (is_array($parameterArray['itemFormElValue'])) {
+                $itemArray = $parameterArray['itemFormElValue'];
+            } else {
+                $itemArray = [(string)$parameterArray['itemFormElValue']];
+            }
+            $itemArray = array_flip($itemArray);
 
             // Traverse the Array of selector box items:
             $groups = [];

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Http;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,6 +15,10 @@ namespace TYPO3\CMS\Core\Http;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Http;
+
+use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -284,21 +288,35 @@ class NormalizedParams
      * dependency to $this. This ensures the chain of inter-property dependencies
      * is visible by only looking at the construct() method.
      *
-     * @param array $serverParams, usually coming from $_SERVER or $request->getServerParams()
+     * @param array $serverParams , usually coming from $_SERVER or $request->getServerParams()
      * @param array $configuration $GLOBALS['TYPO3_CONF_VARS']['SYS']
      * @param string $pathThisScript Absolute server entry script path, usually found within Environment::getCurrentScript()
      * @param string $pathSite Absolute server path to document root, Environment::getPublicPath()
      */
     public function __construct(array $serverParams, array $configuration, string $pathThisScript, string $pathSite)
     {
-        $isBehindReverseProxy = $this->isBehindReverseProxy = self::determineIsBehindReverseProxy($serverParams, $configuration);
+        $isBehindReverseProxy = $this->isBehindReverseProxy = self::determineIsBehindReverseProxy(
+            $serverParams,
+            $configuration
+        );
         $httpHost = $this->httpHost = self::determineHttpHost($serverParams, $configuration, $isBehindReverseProxy);
         $isHttps = $this->isHttps = self::determineHttps($serverParams, $configuration);
         $requestHost = $this->requestHost = ($isHttps ? 'https://' : 'http://') . $httpHost;
         $requestHostOnly = $this->requestHostOnly = self::determineRequestHostOnly($httpHost);
         $this->requestPort = self::determineRequestPort($httpHost, $requestHostOnly);
-        $scriptName = $this->scriptName = self::determineScriptName($serverParams, $configuration, $isHttps, $isBehindReverseProxy);
-        $requestUri = $this->requestUri = self::determineRequestUri($serverParams, $configuration, $isHttps, $scriptName, $isBehindReverseProxy);
+        $scriptName = $this->scriptName = self::determineScriptName(
+            $serverParams,
+            $configuration,
+            $isHttps,
+            $isBehindReverseProxy
+        );
+        $requestUri = $this->requestUri = self::determineRequestUri(
+            $serverParams,
+            $configuration,
+            $isHttps,
+            $scriptName,
+            $isBehindReverseProxy
+        );
         $requestUrl = $this->requestUrl = $requestHost . $requestUri;
         $this->requestScript = $requestHost . $scriptName;
         $requestDir = $this->requestDir = $requestHost . GeneralUtility::dirname($scriptName) . '/';
@@ -534,8 +552,11 @@ class NormalizedParams
      * @param bool $isBehindReverseProxy True if reverse proxy setup is detected
      * @return string Sanitized HTTP_HOST
      */
-    protected static function determineHttpHost(array $serverParams, array $configuration, bool $isBehindReverseProxy): string
-    {
+    protected static function determineHttpHost(
+        array $serverParams,
+        array $configuration,
+        bool $isBehindReverseProxy
+    ): string {
         $httpHost = $serverParams['HTTP_HOST'] ?? '';
         if ($isBehindReverseProxy) {
             // If the request comes from a configured proxy which has set HTTP_X_FORWARDED_HOST, then
@@ -607,9 +628,23 @@ class NormalizedParams
      * @param bool $isBehindReverseProxy True if reverse proxy setup is detected
      * @return string Sanitized script name
      */
-    protected static function determineScriptName(array $serverParams, array $configuration, bool $isHttps, bool $isBehindReverseProxy): string
-    {
-        $scriptName = ($serverParams['ORIG_SCRIPT_NAME'] ?? '') ?: ($serverParams['SCRIPT_NAME'] ?? '');
+    protected static function determineScriptName(
+        array $serverParams,
+        array $configuration,
+        bool $isHttps,
+        bool $isBehindReverseProxy
+    ): string {
+        // see https://forge.typo3.org/issues/89312
+        // When using a CGI wrapper to dispatch the PHP process `ORIG_SCRIPT_NAME`
+        // contains the name of the wrapper script (which is most probably outside
+        // the TYPO3's project root) and leads to invalid prefixes, e.g. resolving
+        // the `siteUrl` incorrectly as `http://ip10.local/fcgi/` instead of
+        // actual `http://ip10.local/`
+        $possiblePathInfo = ($serverParams['ORIG_PATH_INFO'] ?? '') ?: ($serverParams['PATH_INFO'] ?? '');
+        $possibleScriptName = ($serverParams['ORIG_SCRIPT_NAME'] ?? '') ?: ($serverParams['SCRIPT_NAME'] ?? '');
+        $scriptName = Environment::isRunningOnCgiServer() && $possiblePathInfo
+            ? $possiblePathInfo
+            : $possibleScriptName;
         if ($isBehindReverseProxy) {
             // Add a prefix if TYPO3 is behind a proxy: ext-domain.com => int-server.com/prefix
             if ($isHttps && !empty($configuration['reverseProxyPrefixSSL'])) {
@@ -632,14 +667,19 @@ class NormalizedParams
      * @param bool $isBehindReverseProxy True if reverse proxy setup is detected
      * @return string Sanitized REQUEST_URI
      */
-    protected static function determineRequestUri(array $serverParams, array $configuration, bool $isHttps, string $scriptName, bool $isBehindReverseProxy): string
-    {
+    protected static function determineRequestUri(
+        array $serverParams,
+        array $configuration,
+        bool $isHttps,
+        string $scriptName,
+        bool $isBehindReverseProxy
+    ): string {
         $proxyPrefixApplied = false;
         if (!empty($configuration['requestURIvar'])) {
             // This is for URL rewriter that store the original URI in a server
             // variable (e.g. ISAPI Rewriter for IIS: HTTP_X_REWRITE_URL), a config then looks like:
             // requestURIvar = '_SERVER|HTTP_X_REWRITE_URL' which will access $GLOBALS['_SERVER']['HTTP_X_REWRITE_URL']
-            list($firstLevel, $secondLevel) = GeneralUtility::trimExplode('|', $configuration['requestURIvar'], true);
+            [$firstLevel, $secondLevel] = GeneralUtility::trimExplode('|', $configuration['requestURIvar'], true);
             $requestUri = $GLOBALS[$firstLevel][$secondLevel];
         } elseif (empty($serverParams['REQUEST_URI'])) {
             // This is for ISS/CGI which does not have the REQUEST_URI available.
@@ -669,8 +709,11 @@ class NormalizedParams
      * @param bool $isBehindReverseProxy True if reverse proxy setup is detected
      * @return string Resolved REMOTE_ADDR
      */
-    protected static function determineRemoteAddress(array $serverParams, array $configuration, bool $isBehindReverseProxy): string
-    {
+    protected static function determineRemoteAddress(
+        array $serverParams,
+        array $configuration,
+        bool $isBehindReverseProxy
+    ): string {
         $remoteAddress = trim($serverParams['REMOTE_ADDR'] ?? '');
         if ($isBehindReverseProxy) {
             $ip = GeneralUtility::trimExplode(',', $serverParams['HTTP_X_FORWARDED_FOR'] ?? '', true);
@@ -699,7 +742,10 @@ class NormalizedParams
      */
     protected static function determineIsBehindReverseProxy($serverParams, $configuration): bool
     {
-        return GeneralUtility::cmpIP(trim($serverParams['REMOTE_ADDR'] ?? ''), trim($configuration['reverseProxyIP'] ?? ''));
+        return GeneralUtility::cmpIP(
+            trim($serverParams['REMOTE_ADDR'] ?? ''),
+            trim($configuration['reverseProxyIP'] ?? '')
+        );
     }
 
     /**
@@ -712,7 +758,11 @@ class NormalizedParams
     {
         $httpHostBracketPosition = strpos($httpHost, ']');
         $httpHostParts = explode(':', $httpHost);
-        return $httpHostBracketPosition !== false ? substr($httpHost, 0, $httpHostBracketPosition + 1) : array_shift($httpHostParts);
+        return $httpHostBracketPosition !== false ? substr(
+            $httpHost,
+            0,
+            $httpHostBracketPosition + 1
+        ) : array_shift($httpHostParts);
     }
 
     /**
@@ -769,15 +819,10 @@ class NormalizedParams
      */
     protected static function determineSiteUrl(string $requestDir, string $pathThisScript, string $pathSite): string
     {
-        if (defined('TYPO3_PATH_WEB')) {
-            // This can only be set by external entry scripts
-            $siteUrl = $requestDir;
-        } else {
-            $pathThisScriptDir = substr(dirname($pathThisScript), strlen($pathSite)) . '/';
-            $siteUrl = substr($requestDir, 0, -strlen($pathThisScriptDir));
-            $siteUrl = rtrim($siteUrl, '/') . '/';
-        }
-        return $siteUrl;
+        $pathThisScriptDir = substr(dirname($pathThisScript), strlen($pathSite)) . '/';
+        $siteUrl = substr($requestDir, 0, -strlen($pathThisScriptDir));
+
+        return rtrim($siteUrl, '/') . '/';
     }
 
     /**
@@ -802,5 +847,37 @@ class NormalizedParams
     protected static function determineSiteScript(string $requestUrl, string $siteUrl): string
     {
         return (string)substr($requestUrl, strlen($siteUrl));
+    }
+
+    /**
+     * Factory method, to allow TYPO3 to handle configuration options directly.
+     *
+     * @param array $serverParams - could be fulfilled by $_SERVER (on web requests)
+     * @param array|null $systemConfiguration
+     * @return static
+     */
+    public static function createFromServerParams(array $serverParams, array $systemConfiguration = null): self
+    {
+        return new NormalizedParams(
+            $serverParams,
+            $systemConfiguration ?? $GLOBALS['TYPO3_CONF_VARS']['SYS'],
+            Environment::getCurrentScript(),
+            Environment::getPublicPath()
+        );
+    }
+
+    /**
+     * Factory method for creating normalized params from a PSR-7 server request object
+     *
+     * @param ServerRequestInterface $request
+     * @param array|null $systemConfiguration
+     * @return static
+     */
+    public static function createFromRequest(ServerRequestInterface $request, array $systemConfiguration = null): self
+    {
+        return static::createFromServerParams(
+            $request->getServerParams(),
+            $systemConfiguration ?? $GLOBALS['TYPO3_CONF_VARS']['SYS']
+        );
     }
 }

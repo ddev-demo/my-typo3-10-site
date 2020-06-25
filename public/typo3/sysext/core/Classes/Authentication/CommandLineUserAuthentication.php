@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Core\Authentication;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Core\Authentication;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Core\Authentication;
 
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Crypto\PasswordHashing\PasswordHashFactory;
@@ -52,7 +53,7 @@ class CommandLineUserAuthentication extends BackendUserAuthentication
     }
 
     /**
-     * Replacement for AbstactUserAuthentication::start()
+     * Replacement for AbstractUserAuthentication::start()
      *
      * We do not need support for sessions, cookies, $_GET-modes, the postUserLookup hook or
      * a database connection during CLI Bootstrap
@@ -63,7 +64,7 @@ class CommandLineUserAuthentication extends BackendUserAuthentication
     }
 
     /**
-     * Replacement for AbstactUserAuthentication::checkAuthentication()
+     * Replacement for AbstractUserAuthentication::checkAuthentication()
      *
      * Not required in CLI mode, therefore empty.
      */

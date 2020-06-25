@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Backend\Form\Element;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Backend\Form\Element;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Backend\Form\Element;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Imaging\Icon;
@@ -127,7 +128,7 @@ class InputLinkElement extends AbstractFormElement
 
         // @todo: The whole eval handling is a mess and needs refactoring
         foreach ($evalList as $func) {
-            // @todo: This is ugly: The code should find out on it's own whether a eval definition is a
+            // @todo: This is ugly: The code should find out on it's own whether an eval definition is a
             // @todo: keyword like "date", or a class reference. The global registration could be dropped then
             // Pair hook to the one in \TYPO3\CMS\Core\DataHandling\DataHandler::checkValue_input_Eval()
             if (isset($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['tce']['formevals'][$func])) {
@@ -221,9 +222,9 @@ class InputLinkElement extends AbstractFormElement
         $expansionHtml[] =  '<div class="form-wizards-wrap">';
         $expansionHtml[] =      '<div class="form-wizards-element">';
         $expansionHtml[] =          '<div class="input-group t3js-form-field-inputlink">';
-        $expansionHtml[] =              '<span class="input-group-addon">' . $linkExplanation['icon'] . '</span>';
+        $expansionHtml[] =              '<span class="t3js-form-field-inputlink-icon input-group-addon">' . $linkExplanation['icon'] . '</span>';
         $expansionHtml[] =              '<input class="form-control form-field-inputlink-explanation t3js-form-field-inputlink-explanation" data-toggle="tooltip" data-title="' . $explanation . '" value="' . $explanation . '" readonly>';
-        $expansionHtml[] =              '<input type="text"' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
+        $expansionHtml[] =              '<input type="text" ' . GeneralUtility::implodeAttributes($attributes, true) . ' />';
         $expansionHtml[] =              '<span class="input-group-btn">';
         $expansionHtml[] =                  '<button class="btn btn-default t3js-form-field-inputlink-explanation-toggle" type="button" title="' . htmlspecialchars($toggleButtonTitle) . '">';
         $expansionHtml[] =                      $this->iconFactory->getIcon('actions-version-workspaces-preview-link', Icon::SIZE_SMALL)->render();
@@ -295,7 +296,7 @@ class InputLinkElement extends AbstractFormElement
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-placeholder">';
             $fullElement[] =    '<div class="form-control-wrap" style="max-width:' . $width . 'px">';
-            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . $shortenedPlaceholder . '" />';
+            $fullElement[] =        '<input type="text" class="form-control" disabled="disabled" value="' . htmlspecialchars($shortenedPlaceholder) . '" />';
             $fullElement[] =    '</div>';
             $fullElement[] = '</div>';
             $fullElement[] = '<div class="t3js-formengine-placeholder-formfield">';
@@ -329,13 +330,7 @@ class InputLinkElement extends AbstractFormElement
 
         try {
             $linkData = $linkService->resolve($linkParts['url']);
-        } catch (FileDoesNotExistException $e) {
-            return $data;
-        } catch (FolderDoesNotExistException $e) {
-            return $data;
-        } catch (UnknownLinkHandlerException $e) {
-            return $data;
-        } catch (InvalidPathException $e) {
+        } catch (FileDoesNotExistException|FolderDoesNotExistException|UnknownLinkHandlerException|InvalidPathException $e) {
             return $data;
         }
 
@@ -426,6 +421,15 @@ class InputLinkElement extends AbstractFormElement
                     ];
                 }
                 break;
+            case LinkService::TYPE_TELEPHONE:
+                $telephone = $linkData['telephone'];
+                if ($telephone) {
+                    $data = [
+                        'text' => $telephone,
+                        'icon' => $this->iconFactory->getIcon('actions-device-mobile', Icon::SIZE_SMALL)->render()
+                    ];
+                }
+                break;
             default:
                 // Please note that this hook is preliminary and might change, as this element could become its own
                 // TCA type in the future
@@ -452,7 +456,7 @@ class InputLinkElement extends AbstractFormElement
     protected function getDomainByUrl(string $uriString): string
     {
         $data = parse_url($uriString);
-        return $data['host'] ?? '';
+        return $data['host'] ?? $uriString;
     }
 
     /**

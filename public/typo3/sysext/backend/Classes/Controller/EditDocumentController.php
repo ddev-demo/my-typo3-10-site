@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Backend\Controller;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,8 +15,13 @@ namespace TYPO3\CMS\Backend\Controller;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Backend\Controller;
+
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Controller\Event\AfterFormEnginePageInitializedEvent;
+use TYPO3\CMS\Backend\Controller\Event\BeforeFormEnginePageInitializedEvent;
 use TYPO3\CMS\Backend\Form\Exception\AccessDeniedException;
 use TYPO3\CMS\Backend\Form\Exception\DatabaseRecordException;
 use TYPO3\CMS\Backend\Form\FormDataCompiler;
@@ -51,7 +56,6 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Utility\PathUtility;
-use TYPO3\CMS\Extbase\SignalSlot\Dispatcher;
 
 /**
  * Main backend controller almost always used if some database record is edited in the backend.
@@ -343,14 +347,9 @@ class EditDocumentController
     /**
      * Used internally to disable the storage of the document reference (eg. new records)
      *
-     * @var bool
+     * @var int
      */
     protected $dontStoreDocumentRef = 0;
-
-    /**
-     * @var \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
-     */
-    protected $signalSlotDispatcher;
 
     /**
      * Stores information needed to preview the currently saved record
@@ -381,10 +380,19 @@ class EditDocumentController
     protected $isPageInFreeTranslationMode = false;
 
     /**
-     * Constructor
+     * @var EventDispatcherInterface
      */
-    public function __construct()
+    protected $eventDispatcher;
+
+    /**
+     * @var UriBuilder
+     */
+    protected $uriBuilder;
+
+    public function __construct(EventDispatcherInterface $eventDispatcher)
     {
+        $this->eventDispatcher = $eventDispatcher;
+        $this->uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         $this->moduleTemplate = GeneralUtility::makeInstance(ModuleTemplate::class);
         $this->moduleTemplate->setUiBlock(true);
         // @todo Used by TYPO3\CMS\Backend\Configuration\TypoScript\ConditionMatching
@@ -460,8 +468,7 @@ class EditDocumentController
         $this->addSlugFieldsToColumnsOnly($queryParams);
 
         // Set final return URL
-        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-        $this->retUrl = $this->returnUrl ?: (string)$uriBuilder->buildUriFromRoute('dummy');
+        $this->retUrl = $this->returnUrl ?: (string)$this->uriBuilder->buildUriFromRoute('dummy');
 
         // Change $this->editconf if versioning applies to any of the records
         $this->fixWSversioningInEditConf();
@@ -489,8 +496,8 @@ class EditDocumentController
             $this->getBackendUser()->setTemporaryWorkspace($this->workspace);
         }
 
-        $this->emitFunctionAfterSignal('preInit', $request);
-
+        $event = new BeforeFormEnginePageInitializedEvent($this, $request);
+        $this->eventDispatcher->dispatch($event);
         return null;
     }
 
@@ -586,10 +593,10 @@ class EditDocumentController
                             }
                             $newEditConf[$tableName][$editId] = 'edit';
                         }
-                        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
                         // Traverse all new records and forge the content of ->editconf so we can continue to edit these records!
                         if ($tableName === 'pages'
-                            && $this->retUrl != (string)$uriBuilder->buildUriFromRoute('dummy')
+                            && $this->retUrl !== (string)$this->uriBuilder->buildUriFromRoute('dummy')
+                            && $this->retUrl !== $this->getCloseUrl()
                             && $this->returnNewPageId
                         ) {
                             $this->retUrl .= '&id=' . $tce->substNEWwithIDs[$key];
@@ -636,7 +643,7 @@ class EditDocumentController
             // Setting a blank editconf array for a new record:
             $this->editconf = [];
             // Determine related page ID for regular live context
-            if ($nRec['t3ver_oid'] > 0) {
+            if ((int)$nRec['t3ver_oid'] === 0) {
                 if ($insertRecordOnTop) {
                     $relatedPageId = $nRec['pid'];
                 } else {
@@ -727,9 +734,11 @@ class EditDocumentController
         }
         // If a preview is requested
         if (isset($parsedBody['_savedokview'])) {
+            $array_keys = array_keys($this->data);
             // Get the first table and id of the data array from DataHandler
-            $table = reset(array_keys($this->data));
-            $id = reset(array_keys($this->data[$table]));
+            $table = reset($array_keys);
+            $array_keys = array_keys($this->data[$table]);
+            $id = reset($array_keys);
             if (!MathUtility::canBeInterpretedAsInteger($id)) {
                 $id = $tce->substNEWwithIDs[$id];
             }
@@ -779,7 +788,8 @@ class EditDocumentController
         // Set context sensitive menu
         $this->moduleTemplate->getPageRenderer()->loadRequireJsModule('TYPO3/CMS/Backend/ContextMenu');
 
-        $this->emitFunctionAfterSignal('init', $request);
+        $event = new AfterFormEnginePageInitializedEvent($this, $request);
+        $this->eventDispatcher->dispatch($event);
     }
 
     /**
@@ -842,14 +852,7 @@ class EditDocumentController
         // language handling
         $languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'] ?? '';
         if ($languageField && !empty($recordArray[$languageField])) {
-            $l18nPointer = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'] ?? '';
-            if ($l18nPointer && !empty($recordArray[$l18nPointer])
-                && isset($previewConfiguration['useDefaultLanguageRecord'])
-                && !$previewConfiguration['useDefaultLanguageRecord']
-            ) {
-                // use parent record
-                $recordId = $recordArray[$l18nPointer];
-            }
+            $recordId = $this->resolvePreviewRecordId($table, $recordArray, $previewConfiguration);
             $language = $recordArray[$languageField];
             if ($language > 0) {
                 $linkParameters['L'] = $language;
@@ -883,6 +886,30 @@ class EditDocumentController
         }
 
         return HttpUtility::buildQueryString($linkParameters, '&');
+    }
+
+    /**
+     * @param string $table
+     * @param array $recordArray
+     * @param array $previewConfiguration
+     *
+     * @return int
+     */
+    protected function resolvePreviewRecordId(string $table, array $recordArray, array $previewConfiguration): int
+    {
+        $l10nPointer = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'] ?? '';
+        if ($l10nPointer
+            && !empty($recordArray[$l10nPointer])
+            && (
+                // not set -> default to true
+                !isset($previewConfiguration['useDefaultLanguageRecord'])
+                // or set -> use value
+                || $previewConfiguration['useDefaultLanguageRecord']
+            )
+        ) {
+            return $recordArray[$l10nPointer];
+        }
+        return $recordArray['uid'];
     }
 
     /**
@@ -1183,15 +1210,12 @@ class EditDocumentController
                                 $this->errorC++;
                                 // Try to fetch error message from "recordInternals" be user object
                                 // @todo: This construct should be logged and localized and de-uglified
-                                $message = $beUser->errorMsg;
-                                if (empty($message)) {
-                                    // Create message from exception.
-                                    $message = $e->getMessage() . ' ' . $e->getCode();
-                                }
-                                $editForm .= htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noEditPermission'))
-                                    . '<br /><br />' . htmlspecialchars($message) . '<br /><br />';
+                                $message = (!empty($beUser->errorMsg)) ? $beUser->errorMsg : $message = $e->getMessage() . ' ' . $e->getCode();
+                                $title = $this->getLanguageService()
+                                    ->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.noEditPermission');
+                                $editForm .= $this->getInfobox($message, $title);
                             } catch (DatabaseRecordException $e) {
-                                $editForm = '<div class="alert alert-warning">' . htmlspecialchars($e->getMessage()) . '</div>';
+                                $editForm .= $this->getInfobox($e->getMessage());
                             }
                         } // End of for each uid
                     }
@@ -1199,6 +1223,31 @@ class EditDocumentController
             }
         }
         return $editForm;
+    }
+
+    /**
+     * Helper function for rendering an Infobox
+     *
+     * @param string $message
+     * @param string|null $title
+     * @return string
+     */
+    protected function getInfobox(string $message, ?string $title = null): string
+    {
+        return '<div class="callout callout-danger">' .
+                '<div class="media">' .
+                    '<div class="media-left">' .
+                        '<span class="fa-stack fa-lg callout-icon">' .
+                            '<i class="fa fa-circle fa-stack-2x"></i>' .
+                            '<i class="fa fa-times fa-stack-1x"></i>' .
+                        '</span>' .
+                    '</div>' .
+                    '<div class="media-body">' .
+                        ($title ? '<h4 class="callout-title">' . htmlspecialchars($title) . '</h4>' : '') .
+                        '<div class="callout-body">' . htmlspecialchars($message) . '</div>' .
+                    '</div>' .
+                '</div>' .
+            '</div>';
     }
 
     /**
@@ -1598,8 +1647,6 @@ class EditDocumentController
             && $this->isSavedRecord
             && count($this->elementsData) === 1
         ) {
-            /** @var UriBuilder $uriBuilder */
-            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
             $classNames = 't3js-editform-delete-record';
             $returnUrl = $this->retUrl;
             if ($this->firstEl['table'] === 'pages') {
@@ -1610,7 +1657,7 @@ class EditDocumentController
                 ) {
                     // TODO: Use the page's pid instead of 0, this requires a clean API to manipulate the page
                     // tree from the outside to be able to mark the pid as active
-                    $returnUrl = (string)$uriBuilder->buildUriFromRoutePath($queryParams['route'], ['id' => 0]);
+                    $returnUrl = (string)$this->uriBuilder->buildUriFromRoutePath($queryParams['route'], ['id' => 0]);
                 }
             }
 
@@ -1637,7 +1684,7 @@ class EditDocumentController
                 )
             );
 
-            $deleteUrl = (string)$uriBuilder->buildUriFromRoute('tce_db', [
+            $deleteUrl = (string)$this->uriBuilder->buildUriFromRoute('tce_db', [
                 'cmd' => [
                     $this->firstEl['table'] => [
                         $this->firstEl['uid'] => [
@@ -1683,29 +1730,17 @@ class EditDocumentController
             && !empty($this->firstEl['table'])
             && $this->getTsConfigOption($this->firstEl['table'], 'showHistory')
         ) {
-            /** @var UriBuilder $uriBuilder */
-            $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-
-            $historyButtonOnClick = 'window.location.href=' .
-                GeneralUtility::quoteJSvalue(
-                    (string)$uriBuilder->buildUriFromRoute(
-                        'record_history',
-                        [
-                            'element' => $this->firstEl['table'] . ':' . $this->firstEl['uid'],
-                            'returnUrl' => $this->R_URI,
-                        ]
-                    )
-                ) . '; return false;';
-
+            $historyUrl = (string)$this->uriBuilder->buildUriFromRoute('record_history', [
+                'element' => $this->firstEl['table'] . ':' . $this->firstEl['uid'],
+                'returnUrl' => $this->R_URI,
+            ]);
             $historyButton = $buttonBar->makeLinkButton()
-                ->setHref('#')
+                ->setHref($historyUrl)
+                ->setTitle('Open history of this record')
                 ->setIcon($this->moduleTemplate->getIconFactory()->getIcon(
                     'actions-document-history-open',
                     Icon::SIZE_SMALL
-                ))
-                ->setOnClick($historyButtonOnClick)
-                ->setTitle('Open history of this record')
-                ;
+                ));
 
             $buttonBar->addButton($historyButton, $position, $group);
         }
@@ -1968,15 +2003,12 @@ class EditDocumentController
      *
      * @param string $table Table name
      * @param int $uid Uid for which to create a new language
-     * @param int $pid|null Pid of the record
+     * @param int|null $pid Pid of the record
      */
     protected function languageSwitch(string $table, int $uid, $pid = null)
     {
         $languageField = $GLOBALS['TCA'][$table]['ctrl']['languageField'];
         $transOrigPointerField = $GLOBALS['TCA'][$table]['ctrl']['transOrigPointerField'];
-        /** @var UriBuilder $uriBuilder */
-        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
-
         // Table editable and activated for languages?
         if ($this->getBackendUser()->check('tables_modify', $table)
             && $languageField
@@ -2071,7 +2103,7 @@ class EditDocumentController
                         if (!isset($rowsByLang[$languageId])) {
                             // Translation in this language does not exist
                             $selectorOptionLabel .= ' [' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:core/Resources/Private/Language/locallang_core.xlf:labels.new')) . ']';
-                            $redirectUrl = (string)$uriBuilder->buildUriFromRoute('record_edit', [
+                            $redirectUrl = (string)$this->uriBuilder->buildUriFromRoute('record_edit', [
                                 'justLocalized' => $table . ':' . $rowsByLang[0]['uid'] . ':' . $languageId,
                                 'returnUrl' => $this->retUrl
                             ]);
@@ -2097,7 +2129,7 @@ class EditDocumentController
                                     ]
                                 ];
                             }
-                            $href = (string)$uriBuilder->buildUriFromRoute('record_edit', $params);
+                            $href = (string)$this->uriBuilder->buildUriFromRoute('record_edit', $params);
                         }
                         if ($addOption) {
                             $menuItem = $languageMenu->makeMenuItem()
@@ -2129,7 +2161,7 @@ class EditDocumentController
             return null;
         }
 
-        list($table, $origUid, $language) = explode(':', $justLocalized);
+        [$table, $origUid, $language] = explode(':', $justLocalized);
 
         if ($GLOBALS['TCA'][$table]
             && $GLOBALS['TCA'][$table]['ctrl']['languageField']
@@ -2160,9 +2192,8 @@ class EditDocumentController
             $returnUrl = $parsedBody['returnUrl'] ?? $queryParams['returnUrl'] ?? '';
             if (is_array($localizedRecord)) {
                 // Create redirect response to self to edit just created record
-                $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
                 return new RedirectResponse(
-                    (string)$uriBuilder->buildUriFromRoute(
+                    (string)$this->uriBuilder->buildUriFromRoute(
                         'record_edit',
                         [
                             'edit[' . $table . '][' . $localizedRecord['uid'] . ']' => 'edit',
@@ -2380,6 +2411,7 @@ class EditDocumentController
      */
     protected function closeDocument($mode, ServerRequestInterface $request): ?ResponseInterface
     {
+        $setupArr = [];
         $mode = (int)$mode;
         // If current document is found in docHandler,
         // then unset it, possibly unset it ALL and finally, write it to the session data
@@ -2407,10 +2439,9 @@ class EditDocumentController
         if ($mode === self::DOCUMENT_CLOSE_MODE_NO_REDIRECT) {
             return null;
         }
-        $uriBuilder = GeneralUtility::makeInstance(UriBuilder::class);
         // If ->returnEditConf is set, then add the current content of editconf to the ->retUrl variable: used by
         // other scripts, like wizard_add, to know which records was created or so...
-        if ($this->returnEditConf && $this->retUrl != (string)$uriBuilder->buildUriFromRoute('dummy')) {
+        if ($this->returnEditConf && $this->retUrl != (string)$this->uriBuilder->buildUriFromRoute('dummy')) {
             $this->retUrl .= '&returnEditConf=' . rawurlencode(json_encode($this->editconf));
         }
         // If mode is NOT set (means 0) OR set to 1, then make a header location redirect to $this->retUrl
@@ -2428,30 +2459,6 @@ class EditDocumentController
             }
         }
         return new RedirectResponse($retUrl, 303);
-    }
-
-    /**
-     * Emits a signal after a function was executed
-     *
-     * @param string $signalName
-     * @param ServerRequestInterface $request
-     */
-    protected function emitFunctionAfterSignal($signalName, ServerRequestInterface $request): void
-    {
-        $this->getSignalSlotDispatcher()->dispatch(__CLASS__, $signalName . 'After', [$this, 'request' => $request]);
-    }
-
-    /**
-     * Get the SignalSlot dispatcher
-     *
-     * @return \TYPO3\CMS\Extbase\SignalSlot\Dispatcher
-     */
-    protected function getSignalSlotDispatcher()
-    {
-        if (!isset($this->signalSlotDispatcher)) {
-            $this->signalSlotDispatcher = GeneralUtility::makeInstance(Dispatcher::class);
-        }
-        return $this->signalSlotDispatcher;
     }
 
     /**

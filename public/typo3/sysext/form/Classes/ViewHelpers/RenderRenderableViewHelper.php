@@ -1,11 +1,9 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Form\ViewHelpers;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
- *
- * It originated from the Neos.Form package (www.neos.io)
  *
  * It is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License, either version 2
@@ -16,6 +14,12 @@ namespace TYPO3\CMS\Form\ViewHelpers;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+/*
+ * Inspired by and partially taken from the Neos.Form package (www.neos.io)
+ */
+
+namespace TYPO3\CMS\Form\ViewHelpers;
 
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Form\Domain\Model\Renderable\RenderableInterface;
@@ -85,7 +89,7 @@ class RenderRenderableViewHelper extends AbstractViewHelper
             $content = $renderChildrenClosure();
         }
 
-        // Wrap every renderable with a span with a identifier path data attribute if previewMode is active
+        // Wrap every renderable with a span with an identifier path data attribute if previewMode is active
         if (!empty($content)) {
             $renderingOptions = $formRuntime->getRenderingOptions();
             if (isset($renderingOptions['previewMode']) && $renderingOptions['previewMode'] === true) {

@@ -1,6 +1,6 @@
 <?php
-declare(strict_types = 1);
-namespace TYPO3\CMS\Core\Database;
+
+declare(strict_types=1);
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -15,14 +15,19 @@ namespace TYPO3\CMS\Core\Database;
  * The TYPO3 project - inspiring people to share!
  */
 
+namespace TYPO3\CMS\Core\Database;
+
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\Driver;
+use Doctrine\DBAL\Driver\ServerInfoAwareConnection;
 use Doctrine\DBAL\Driver\Statement;
 use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
 use Doctrine\DBAL\Platforms\SQLServer2012Platform;
+use Doctrine\DBAL\VersionAwarePlatformDriver;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Core\Database\Query\BulkInsertQuery;
 use TYPO3\CMS\Core\Database\Query\Expression\ExpressionBuilder;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -207,15 +212,15 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * Table expression and columns are not escaped and are not safe for user-input.
      *
      * @param string $tableName The name of the table to insert data into.
-     * @param array $data An array containing associative arrays of column-value pairs.
-     * @param array $columns An array containing associative arrays of column-value pairs.
+     * @param array $data An array containing associative arrays of column-value pairs or just the values to be inserted.
+     * @param array $columns An array containing the column names of the data which should be inserted.
      * @param array $types Types of the inserted data.
      *
      * @return int The number of affected rows.
      */
     public function bulkInsert(string $tableName, array $data, array $columns = [], array $types = []): int
     {
-        $query = GeneralUtility::makeInstance(Query\BulkInsertQuery::class, $this, $tableName, $columns);
+        $query = GeneralUtility::makeInstance(BulkInsertQuery::class, $this, $tableName, $columns);
         foreach ($data as $values) {
             $query->addValues($values, $types);
         }
@@ -325,7 +330,7 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
      * @param string $tableName The name of the table to truncate.
      * @param bool $cascade Not supported on many platforms but would cascade the truncate by following foreign keys.
      *
-     * @return int The number of affected rows. For a truncate this is unreliable as theres no meaningful information.
+     * @return int The number of affected rows. For a truncate this is unreliable as there is no meaningful information.
      */
     public function truncate(string $tableName, bool $cascade = false): int
     {
@@ -392,11 +397,11 @@ class Connection extends \Doctrine\DBAL\Connection implements LoggerAwareInterfa
         }
 
         // Driver does not support version specific platforms.
-        if (!$this->getDriver() instanceof \Doctrine\DBAL\VersionAwarePlatformDriver) {
+        if (!$this->getDriver() instanceof VersionAwarePlatformDriver) {
             return $version;
         }
 
-        if ($this->getWrappedConnection() instanceof \Doctrine\DBAL\Driver\ServerInfoAwareConnection
+        if ($this->getWrappedConnection() instanceof ServerInfoAwareConnection
             && !$this->getWrappedConnection()->requiresQueryForServerVersion()
         ) {
             $version .= ' ' . $this->getWrappedConnection()->getServerVersion();

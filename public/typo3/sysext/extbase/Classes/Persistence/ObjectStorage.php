@@ -1,5 +1,4 @@
 <?php
-namespace TYPO3\CMS\Extbase\Persistence;
 
 /*
  * This file is part of the TYPO3 CMS project.
@@ -13,6 +12,8 @@ namespace TYPO3\CMS\Extbase\Persistence;
  *
  * The TYPO3 project - inspiring people to share!
  */
+
+namespace TYPO3\CMS\Extbase\Persistence;
 
 use TYPO3\CMS\Core\Utility\MathUtility;
 
@@ -59,7 +60,7 @@ class ObjectStorage implements \Countable, \Iterator, \ArrayAccess, ObjectMonito
 
     /**
      * An array holding the internal position the object was added.
-     * The object entry is unsetted when the object gets removed from the objectstorage
+     * The object entry is unset when the object gets removed from the objectstorage
      *
      * @var array
      */
@@ -75,7 +76,7 @@ class ObjectStorage implements \Countable, \Iterator, \ArrayAccess, ObjectMonito
 
     /**
      * An internal var holding the count of added objects to be stored as position.
-     * It would be resetted, when all objects will be removed from the objectstorage
+     * It would be reset, when all objects will be removed from the objectstorage
      *
      * @var int
      */
@@ -220,7 +221,7 @@ class ObjectStorage implements \Countable, \Iterator, \ArrayAccess, ObjectMonito
     }
 
     /**
-     * Adds an object in the storage, and optionaly associate it to some data.
+     * Adds an object in the storage, and optionally associate it to some data.
      *
      * @param object $object The object to add.
      * @param mixed $information The data to associate with the object.
